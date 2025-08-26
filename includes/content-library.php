@@ -171,12 +171,14 @@ function chat_with_site_sync_page() {
 	$post_type = isset($_GET['content_type']) ? sanitize_text_field($_GET['content_type']) : 'post';
 	$category = isset($_GET['category']) ? intval($_GET['category']) : 0;
 	$tag = isset($_GET['tag']) ? intval($_GET['tag']) : 0;
+	$paged = isset($_GET['paged']) ? intval($_GET['paged']) : 1;
 
 	// Query posts
 	$args = [
 		'post_type' => $post_type,
-		'posts_per_page' => -1,
+		'posts_per_page' => 20,
 		'post_status' => 'publish',
+		'paged' => $paged,
 	];
 	if ($post_type === 'post') {
 		if ($category) {
@@ -186,7 +188,8 @@ function chat_with_site_sync_page() {
 			$args['tag_id'] = $tag;
 		}
 	}
-	$posts = get_posts($args);
+	$posts_query = new WP_Query($args);
+	$posts = $posts_query->posts;
 
 	// Get post types, categories, tags for filters
 	$post_types = get_post_types(['public' => true], 'names');
@@ -270,6 +273,22 @@ function chat_with_site_sync_page() {
 					<?php endforeach; ?>
 				</tbody>
 			</table>
+			<?php
+			// Pagination
+			$big = 999999999; // need an unlikely integer
+			echo paginate_links(array(
+				'base' => str_replace($big, '%#%', esc_url(get_pagenum_link($big))),
+				'format' => '?paged=%#%',
+				'current' => max(1, $paged),
+				'total' => $posts_query->max_num_pages,
+				'type' => 'plain',
+				'add_args' => array(
+					'content_type' => $post_type,
+					'category' => $category,
+					'tag' => $tag,
+				),
+			));
+			?>
 		<?php endif; ?>
 		<button type="submit" name="sync_posts">Sync Selected</button>
 	</form>

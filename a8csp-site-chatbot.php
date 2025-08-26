@@ -2,7 +2,7 @@
 /**
  * Plugin Name: A8CSP Site Chatbot
  * Description: Chat with your site.
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: WPCOM Special Projects - Team 51
  */
 
