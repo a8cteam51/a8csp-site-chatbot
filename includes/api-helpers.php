@@ -177,7 +177,7 @@ function get_openai_completion($messages) {
 	$data = [
 		'model' => OPENAI_MODEL,
 		'messages' => $messages,
-		'temperature' => 0.7,
+		'temperature' => 0.5,
 		'max_tokens' => 500,
 	];
 	$headers = [

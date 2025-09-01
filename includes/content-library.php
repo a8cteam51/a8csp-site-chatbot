@@ -277,16 +277,11 @@ function chat_with_site_sync_page() {
 			// Pagination
 			$big = 999999999; // need an unlikely integer
 			echo paginate_links(array(
-				'base' => str_replace($big, '%#%', esc_url(get_pagenum_link($big))),
+				'base' => str_replace($big, '%#%', get_pagenum_link($big)),
 				'format' => '?paged=%#%',
 				'current' => max(1, $paged),
 				'total' => $posts_query->max_num_pages,
 				'type' => 'plain',
-				'add_args' => array(
-					'content_type' => $post_type,
-					'category' => $category,
-					'tag' => $tag,
-				),
 			));
 			?>
 		<?php endif; ?>
