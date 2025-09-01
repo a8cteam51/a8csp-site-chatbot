@@ -1,0 +1,15 @@
+{
+	"apiVersion": 2,
+	"name": "a8csp/site-chatbot",
+	"title": "A8CSP Site Chatbot",
+	"category": "widgets",
+	"icon": "format-chat",
+	"description": "A chatbot interface for interacting with site content.",
+	"supports": {
+		"html": false
+	},
+	"textdomain": "a8csp-site-chatbot",
+	"editorScript": "file:./edit.js",
+	"script": "file:./frontend.js",
+	"style": "file:./style.css"
+}
