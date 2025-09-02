@@ -55,7 +55,20 @@ add_action( 'wp_ajax_a8csp_chat_message', 'a8csp_handle_chat_message' );
 add_action( 'wp_ajax_nopriv_a8csp_chat_message', 'a8csp_handle_chat_message' );
 
 function a8csp_handle_chat_message() {
-	check_ajax_referer( 'a8csp-chat', 'nonce' );
+	// Verify nonce for security
+	if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'a8csp-chat' ) ) {
+		wp_send_json_error( 'Invalid nonce' );
+	}
+
+	// Check if message field exists and handle slashed data
+	if ( ! isset( $_POST['message'] ) ) {
+		wp_send_json_error( 'Missing message field' );
+	}
+
+	// Unslash and sanitize message (preserve newlines for textarea input)
+	$message = wp_unslash( $_POST['message'] );
+	$message = sanitize_textarea_field( $message ); // Better for multiline input
+	$message = trim( $message );
 
 	$message = sanitize_text_field( $_POST['message'] );
 	if ( empty( $message ) ) {
@@ -70,11 +83,47 @@ function a8csp_handle_chat_message() {
 		$_SESSION['frontend_chat_history'] = array();
 	}
 
+	// Add user message to history
 	$_SESSION['frontend_chat_history'][] = array( 'role' => 'user', 'content' => $message );
-	$response = get_bot_response( $_SESSION['frontend_chat_history'] );
-	$_SESSION['frontend_chat_history'][] = array( 'role' => 'assistant', 'content' => $response );
 
-	wp_send_json_success( $response );
+	// Bound history growth - keep only last 20 messages (10 exchanges)
+	$max_history = 20;
+	if ( count( $_SESSION['frontend_chat_history'] ) > $max_history ) {
+		$_SESSION['frontend_chat_history'] = array_slice( 
+			$_SESSION['frontend_chat_history'], 
+			-$max_history, 
+			$max_history 
+		);
+	}
+
+	// Guard against missing function
+	if ( ! function_exists( 'get_bot_response' ) ) {
+		wp_send_json_error( 'Chat service temporarily unavailable' );
+	}
+
+	// Get bot response with error handling
+	try {
+		$response = get_bot_response( $_SESSION['frontend_chat_history'] );
+		
+		// Validate response
+		if ( empty( $response ) || ! is_string( $response ) ) {
+			wp_send_json_error( 'Invalid response from chat service' );
+		}
+
+		// Add bot response to history
+		$_SESSION['frontend_chat_history'][] = array( 'role' => 'assistant', 'content' => $response );
+
+		wp_send_json_success( $response );
+
+	} catch ( Exception $e ) {
+		// Log error for debugging
+		error_log( 'A8CSP Chat Error: ' . $e->getMessage() );
+		wp_send_json_error( 'Chat service error occurred' );
+	} catch ( Error $e ) {
+		// Handle PHP fatal errors
+		error_log( 'A8CSP Chat Fatal Error: ' . $e->getMessage() );
+		wp_send_json_error( 'Chat service temporarily unavailable' );
+	}
 }
 
 function a8csp_render_site_chatbot_block( $attributes ) {
