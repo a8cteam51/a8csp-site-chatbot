@@ -35,7 +35,7 @@ function a8csp_register_blocks() {
 	register_block_type( 'a8csp/site-chatbot', array(
 		'editor_script' => 'a8csp-site-chatbot-block-editor',
 		'editor_style' => 'a8csp-site-chatbot-style',
-		'script' => 'a8csp-site-chatbot-frontend',
+		'view_script' => 'a8csp-site-chatbot-frontend',
 		'style' => 'a8csp-site-chatbot-style',
 		'render_callback' => 'a8csp_render_site_chatbot_block',
 		'title' => __( 'A8CSP Site Chatbot', 'a8csp-site-chatbot' ),
@@ -149,7 +149,16 @@ function a8csp_render_site_chatbot_block( $attributes ) {
 		<div id="a8csp-chat-history">
 			<?php foreach ( $history as $msg ) : ?>
 				<div class="a8csp-chat-message <?php echo esc_attr( $msg['role'] === 'user' ? 'user-message' : 'bot-message' ); ?>">
-					<strong><?php echo ucfirst( $msg['role'] ); ?>:</strong> <?php echo esc_html( $msg['content'] ); ?>
+					<strong><?php echo ucfirst( $msg['role'] ); ?>:</strong> 
+					<?php 
+					if ( $msg['role'] === 'assistant' ) {
+						// Bot messages may contain HTML from Markdown conversion
+						echo wp_kses_post( $msg['content'] );
+					} else {
+						// User messages should be plain text
+						echo esc_html( $msg['content'] );
+					}
+					?>
 				</div>
 			<?php endforeach; ?>
 		</div>

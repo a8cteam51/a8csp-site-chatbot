@@ -2,7 +2,7 @@
 /**
  * Plugin Name: A8CSP Site Chatbot
  * Description: Chat with your site.
- * Version: 1.0.2
+ * Version: 1.0.3
  * Author: WPCOM Special Projects - Team 51
  */
 
@@ -10,6 +10,9 @@
 if (!defined('ABSPATH')) {
 	exit;
 }
+
+// Load Composer autoloader
+require_once plugin_dir_path(__FILE__) . 'vendor/autoload.php';
 
 // Get the options array
 $chat_options = get_option('a8csp_chat_with_site_options', array());

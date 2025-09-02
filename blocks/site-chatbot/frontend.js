@@ -16,31 +16,42 @@ document.addEventListener( 'DOMContentLoaded', () => {
 		return;
 	}
 
+	// Handle Enter key to submit (but not Shift+Enter)
+	input.addEventListener( 'keydown', ( e ) => {
+		if ( e.key === 'Enter' && ! e.shiftKey ) {
+			e.preventDefault();
+			form.dispatchEvent( new Event( 'submit' ) );
+		}
+	} );
+
+	// Handle form submission
 	form.addEventListener( 'submit', async ( e ) => {
 		e.preventDefault();
 		const message = input.value.trim();
 		if ( ! message ) return;
-		// Send to server via AJAX
-		// Validate AJAX config before sending
-		if ( ! window.a8csp_ajax || ! a8csp_ajax.ajax_url || ! a8csp_ajax.nonce ) {
-			const errorMsg = document.createElement( 'div' );
-			errorMsg.className = 'chat-message bot-message error';
-			const errorLabel = document.createElement( 'strong' );
-			errorLabel.textContent = 'Error:';
-			errorMsg.appendChild( errorLabel );
-			errorMsg.append( ' ', 'Chat configuration missing. Please reload the page.' );
-			history.appendChild( errorMsg );
-			history.scrollTop = history.scrollHeight;
-			return;
-		}
-		try {
-			const formData = new FormData();
-			formData.append( 'action', 'a8csp_chat_message' );
-			formData.append( 'message', message );
-			formData.append( 'nonce', a8csp_ajax.nonce );
+
+		// Add user message
+		const userMsg = document.createElement( 'div' );
+		userMsg.className = 'a8csp-chat-message user-message';
+		const userLabel = document.createElement( 'strong' );
+		userLabel.textContent = 'User:';
+		userMsg.appendChild( userLabel );
 		userMsg.appendChild( document.createTextNode( ' ' + message ) );
 		history.appendChild( userMsg );
 		input.value = '';
+
+		// Show typing indicator
+		const typingIndicator = document.createElement( 'div' );
+		typingIndicator.className = 'a8csp-chat-message bot-message typing-indicator';
+		const typingLabel = document.createElement( 'strong' );
+		typingLabel.textContent = 'Assistant:';
+		typingIndicator.appendChild( typingLabel );
+		const typingDots = document.createElement( 'span' );
+		typingDots.className = 'typing-dots';
+		typingDots.innerHTML = ' <span></span><span></span><span></span>';
+		typingIndicator.appendChild( typingDots );
+		history.appendChild( typingIndicator );
+		history.scrollTop = history.scrollHeight;
 
 		// Send to server via AJAX
 		try {
@@ -66,6 +77,9 @@ document.addEventListener( 'DOMContentLoaded', () => {
 				throw new Error( 'Invalid response format' );
 			}
 			
+			// Remove typing indicator
+			history.removeChild( typingIndicator );
+
 			if ( result.success ) {
 				// Add bot response
 				const botMsg = document.createElement( 'div' );
@@ -90,6 +104,11 @@ document.addEventListener( 'DOMContentLoaded', () => {
 				history.appendChild( errorMsg );
 			}
 		} catch ( error ) {
+			// Remove typing indicator on error
+			if ( history.contains( typingIndicator ) ) {
+				history.removeChild( typingIndicator );
+			}
+
 			// Log error for debugging
 			console.error( 'A8CSP Chat error:', error );
 			
