@@ -2,7 +2,7 @@
 /**
  * Plugin Name: A8CSP Site Chatbot
  * Description: Chat with your site.
- * Version: 1.0.1
+ * Version: 1.0.2
  * Author: WPCOM Special Projects - Team 51
  */
 
@@ -37,6 +37,7 @@ require_once plugin_dir_path(__FILE__) . 'includes/api-helpers.php';
 require_once plugin_dir_path(__FILE__) . 'includes/settings.php';
 require_once plugin_dir_path(__FILE__) . 'includes/content-library.php';
 require_once plugin_dir_path(__FILE__) . 'includes/sandbox.php';
+require_once plugin_dir_path(__FILE__) . 'includes/block.php';
 
 
 // Define all admin page functions first
