@@ -70,7 +70,12 @@ function a8csp_handle_chat_message() {
 	$message = sanitize_textarea_field( $message ); // Better for multiline input
 	$message = trim( $message );
 
-	$message = sanitize_text_field( $_POST['message'] );
+	// Cap length to prevent abuse.
+	$max_len = 2000;
+	if ( strlen( $message ) > $max_len ) {
+		$message = substr( $message, 0, $max_len );
+	}
+
 	if ( empty( $message ) ) {
 		wp_send_json_error( 'Empty message' );
 	}
@@ -149,7 +154,7 @@ function a8csp_render_site_chatbot_block( $attributes ) {
 		<div id="a8csp-chat-history">
 			<?php foreach ( $history as $msg ) : ?>
 				<div class="a8csp-chat-message <?php echo esc_attr( $msg['role'] === 'user' ? 'user-message' : 'bot-message' ); ?>">
-					<strong><?php echo ucfirst( $msg['role'] ); ?>:</strong> 
+					<strong><?php echo esc_html( ucfirst( $msg['role'] ) ); ?>:</strong> 
 					<?php 
 					if ( $msg['role'] === 'assistant' ) {
 						// Bot messages may contain HTML from Markdown conversion

@@ -13,7 +13,7 @@ function chat_with_site_admin_page() {
 			if (isset($_SESSION['chat_history']) && !empty($_SESSION['chat_history'])) {
 				foreach ($_SESSION['chat_history'] as $msg) {
 					$class = $msg['role'] == 'user' ? 'user-message' : 'bot-message';
-					echo '<div class="' . $class . '" style="margin-bottom: 10px;"><strong>' . ucfirst($msg['role']) . ':</strong> ';
+					echo '<div class="' . $class . '" style="margin-bottom: 10px;"><strong>' . esc_html( ucfirst( $msg['role'] ) ) . ':</strong> ';
 					if ( $msg['role'] === 'assistant' ) {
 						// Bot messages may contain HTML from Markdown conversion
 						echo wp_kses_post( $msg['content'] );

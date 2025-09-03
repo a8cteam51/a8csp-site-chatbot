@@ -90,7 +90,7 @@ document.addEventListener( 'DOMContentLoaded', () => {
 				
 				// Create a span for the response content to allow HTML links from server
 				const responseContent = document.createElement( 'span' );
-				responseContent.innerHTML = ' ' + result.data; // Server response is already sanitized
+                responseContent.innerHTML = ' ' + ( typeof result.data === 'string' ? result.data : String( result.data ) );
 				botMsg.appendChild( responseContent );
 				history.appendChild( botMsg );
 			} else {
