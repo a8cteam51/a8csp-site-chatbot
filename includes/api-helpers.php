@@ -201,3 +201,53 @@ function get_openai_completion($messages) {
 	}
 	return '';
 }
+
+/**
+ * Convert Markdown to HTML using Parsedown library
+ * Handles all standard Markdown syntax securely
+ */
+function a8csp_markdown_to_html( $markdown ) {
+	if ( empty( $markdown ) ) {
+		return '';
+	}
+
+	// Initialize Parsedown with security settings
+	$parsedown = new Parsedown();
+	
+	// Enable safe mode to prevent XSS attacks
+	$parsedown->setSafeMode( true );
+	
+	// Convert Markdown to HTML
+	$html = $parsedown->text( $markdown );
+	
+	// Additional WordPress-specific sanitization
+	$allowed_html = array(
+		'p' => array(),
+		'br' => array(),
+		'strong' => array(),
+		'b' => array(),
+		'em' => array(),
+		'i' => array(),
+		'a' => array(
+			'href' => array(),
+			'title' => array(),
+		),
+		'ul' => array(),
+		'ol' => array(),
+		'li' => array(),
+		'h1' => array(),
+		'h2' => array(),
+		'h3' => array(),
+		'h4' => array(),
+		'h5' => array(),
+		'h6' => array(),
+		'blockquote' => array(),
+		'code' => array(),
+		'pre' => array(),
+	);
+	
+	// Sanitize the HTML output
+	$html = wp_kses( $html, $allowed_html );
+	
+	return $html;
+}

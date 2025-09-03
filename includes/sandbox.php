@@ -13,7 +13,15 @@ function chat_with_site_admin_page() {
 			if (isset($_SESSION['chat_history']) && !empty($_SESSION['chat_history'])) {
 				foreach ($_SESSION['chat_history'] as $msg) {
 					$class = $msg['role'] == 'user' ? 'user-message' : 'bot-message';
-					echo '<div class="' . $class . '" style="margin-bottom: 10px;"><strong>' . ucfirst($msg['role']) . ':</strong> ' . esc_html($msg['content']) . '</div>';
+					echo '<div class="' . $class . '" style="margin-bottom: 10px;"><strong>' . esc_html( ucfirst( $msg['role'] ) ) . ':</strong> ';
+					if ( $msg['role'] === 'assistant' ) {
+						// Bot messages may contain HTML from Markdown conversion
+						echo wp_kses_post( $msg['content'] );
+					} else {
+						// User messages should be plain text
+						echo esc_html( $msg['content'] );
+					}
+					echo '</div>';
 				}
 			} else {
 				echo '<p>No chat history yet.</p>';
@@ -96,6 +104,11 @@ function get_bot_response($history) {
 	$messages = array_merge($messages, $history);
 	$response = get_openai_completion($messages);
 	// $response .= $debug;
+
+	if ( $response ) {
+		// Convert Markdown to HTML for better display
+		$response = a8csp_markdown_to_html( $response );
+	}
 
 	return $response ? $response : 'Error getting response.';
 }
