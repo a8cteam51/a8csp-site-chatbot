@@ -4,6 +4,13 @@ if (!defined('ABSPATH')) {
 	exit;
 }
 
+function chat_with_site_admin_menu() {
+	// Main menu page is now Content Library (most used feature)
+	add_menu_page('51 Site Chatbot', '51 Chatbot', 'manage_options', 'chat-with-site-sync', 'chat_with_site_sync_page', 'dashicons-format-chat');
+	add_submenu_page('chat-with-site-sync', 'Content Library', 'Content Library', 'manage_options', 'chat-with-site-sync', 'chat_with_site_sync_page');
+	add_submenu_page('chat-with-site-sync', 'Settings', 'Settings', 'manage_options', 'chat-with-site-settings', 'chat_with_site_settings_page');
+}
+
 function chat_with_site_settings_page() {
 	// Check for missing required settings
 	$options = get_option('a8csp_chat_with_site_options', array());

@@ -285,7 +285,8 @@ function chat_with_site_sync_page() {
 			));
 			?>
 		<?php endif; ?>
-		<button type="submit" name="sync_posts">Sync Selected</button>
+		
+		<button type="submit" name="sync_posts" class="button button-primary">Sync Selected</button>
 	</form>
 </div>
 <?php
