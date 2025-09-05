@@ -39,7 +39,7 @@ function chat_with_site_activate() {
 require_once plugin_dir_path(__FILE__) . 'includes/api-helpers.php';
 require_once plugin_dir_path(__FILE__) . 'includes/settings.php';
 require_once plugin_dir_path(__FILE__) . 'includes/content-library.php';
-require_once plugin_dir_path(__FILE__) . 'includes/sandbox.php';
+require_once plugin_dir_path(__FILE__) . 'includes/chat-core.php';
 require_once plugin_dir_path(__FILE__) . 'includes/block.php';
 
 
@@ -48,9 +48,5 @@ require_once plugin_dir_path(__FILE__) . 'includes/block.php';
 
 add_action('admin_menu', 'chat_with_site_admin_menu');
 
-add_action('admin_init', 'chat_with_site_start_session');
-
 add_action('admin_init', 'chat_with_site_register_settings');
-
-add_action('admin_init', 'chat_with_site_handle_post');
 

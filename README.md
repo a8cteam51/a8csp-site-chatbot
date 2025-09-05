@@ -7,8 +7,7 @@ A8CSP Site Chatbot is a WordPress plugin that enables a chatbot interface for in
 ### Features
 - **Settings Page**: Configure API keys for Pinecone and OpenAI.
 - **Content Library**: Sync site content (posts, pages) to Pinecone for vector search.
-- **Sandbox Chat**: Test the chatbot in an admin sandbox environment.
-- **Frontend Block**: Soon...
+- **Frontend Block**: A WordPress block for the chat component.
 
 ## Requirements
 - WordPress 5.0 or higher
@@ -36,16 +35,10 @@ A8CSP Site Chatbot is a WordPress plugin that enables a chatbot interface for in
 3. Select posts to sync and click "Sync Selected".
 4. Synced posts will be marked as "In Pinecone" with a sync date.
 
-### Sandbox Chat
-1. Go to **Chat with Site** (main menu item).
-2. Type a message and send to chat with the bot.
-3. The bot uses site content from Pinecone to generate responses.
-4. Clear chat history if needed.
-
 ## Troubleshooting
 TBD
 
 ## Development
-The plugin is structured with includes for settings, content library, sandbox, and API helpers.
+The plugin is structured with includes for settings, content library, and API helpers.
 
 For support, contact the developer team or open an issue.

@@ -1,66 +1,15 @@
 <?php
+/**
+ * Core chat functionality
+ * Handles bot responses, AI prompts, and admin menu
+ */
+
 // Prevent direct access
 if (!defined('ABSPATH')) {
 	exit;
 }
 
-function chat_with_site_admin_page() {
-	?>
-	<div class="wrap">
-		<h1>Sandbox Chat</h1>
-		<div id="chat-history" style="border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; max-height: 400px; overflow-y: scroll;">
-			<?php
-			if (isset($_SESSION['chat_history']) && !empty($_SESSION['chat_history'])) {
-				foreach ($_SESSION['chat_history'] as $msg) {
-					$class = $msg['role'] == 'user' ? 'user-message' : 'bot-message';
-					echo '<div class="' . $class . '" style="margin-bottom: 10px;"><strong>' . esc_html( ucfirst( $msg['role'] ) ) . ':</strong> ';
-					if ( $msg['role'] === 'assistant' ) {
-						// Bot messages may contain HTML from Markdown conversion
-						echo wp_kses_post( $msg['content'] );
-					} else {
-						// User messages should be plain text
-						echo esc_html( $msg['content'] );
-					}
-					echo '</div>';
-				}
-			} else {
-				echo '<p>No chat history yet.</p>';
-			}
-			?>
-		</div>
-		<form method="post">
-			<textarea name="message" rows="3" style="width: 100%;" placeholder="Type your message here..."></textarea>
-			<button type="submit" name="clear">🚫 Clear Chat</button> | <button type="submit">💬 Send</button>
-		</form>
-	</div>
-	<?php
-}
 
-function chat_with_site_start_session() {
-	if (!session_id()) {
-		session_start();
-	}
-}
-
-function chat_with_site_handle_post() {
-	if (isset($_GET['page']) && $_GET['page'] === 'chat-with-site' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-		if (isset($_POST['clear'])) {
-			unset($_SESSION['chat_history']);
-		} elseif (isset($_POST['message'])) {
-			$message = sanitize_text_field($_POST['message']);
-			if (!empty($message)) {
-				if (!isset($_SESSION['chat_history'])) {
-					$_SESSION['chat_history'] = [];
-				}
-				$_SESSION['chat_history'][] = ['role' => 'user', 'content' => $message];
-				$response = get_bot_response($_SESSION['chat_history']);
-				$_SESSION['chat_history'][] = ['role' => 'assistant', 'content' => $response];
-			}
-		}
-		wp_redirect(admin_url('admin.php?page=chat-with-site'));
-		exit;
-	}
-}
 
 function get_bot_response($history) {
 	// Rhe last message from the user.
@@ -120,10 +69,3 @@ function wpcomsp_get_prompt() {
 	In interactions, you will maintain an engaging and insightful tone, appealing to travelers seeking extraordinary experiences at the intersection of culture and design. The inclusion of website links adds an extra layer of credibility and depth, making the travel advice more valuable and informative for design-oriented travelers.";
 }
 
-function chat_with_site_admin_menu() {
-	add_menu_page('Chat with Site', 'Chat with Site', 'manage_options', 'chat-with-site', 'chat_with_site_admin_page');
-	add_submenu_page('chat-with-site', 'Content Library', 'Content Library', 'manage_options', 'chat-with-site-sync', 'chat_with_site_sync_page');
-	add_submenu_page('chat-with-site', 'Settings', 'Settings', 'manage_options', 'chat-with-site-settings', 'chat_with_site_settings_page');
-	
-	
-}
