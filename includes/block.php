@@ -50,9 +50,13 @@ function a8csp_register_blocks() {
 
 add_action( 'init', 'a8csp_register_blocks' );
 
-// Add AJAX handler for chat messages
+// Add AJAX handlers for chat messages
 add_action( 'wp_ajax_a8csp_chat_message', 'a8csp_handle_chat_message' );
 add_action( 'wp_ajax_nopriv_a8csp_chat_message', 'a8csp_handle_chat_message' );
+
+// Security: Add nonce refresh handler for long sessions
+add_action( 'wp_ajax_a8csp_refresh_nonce', 'a8csp_handle_nonce_refresh' );
+add_action( 'wp_ajax_nopriv_a8csp_refresh_nonce', 'a8csp_handle_nonce_refresh' );
 
 function a8csp_handle_chat_message() {
 	// Verify nonce for security
@@ -80,9 +84,26 @@ function a8csp_handle_chat_message() {
 		wp_send_json_error( 'Empty message' );
 	}
 
-	// Retrieve or initialize chat history from session
+	// Security: Start session with security settings
 	if ( ! session_id() ) {
+		// Security: Set secure session parameters
+		if ( ! headers_sent() ) {
+			session_set_cookie_params( array(
+				'lifetime' => 0, // Session cookie
+				'path' => '/',
+				'domain' => '',
+				'secure' => is_ssl(), // HTTPS only if available
+				'httponly' => true, // Prevent XSS access to session cookie
+				'samesite' => 'Strict' // CSRF protection
+			) );
+		}
 		session_start();
+		
+		// Security: Regenerate session ID to prevent fixation
+		if ( ! isset( $_SESSION['a8csp_session_started'] ) ) {
+			session_regenerate_id( true );
+			$_SESSION['a8csp_session_started'] = true;
+		}
 	}
 	if ( ! isset( $_SESSION['frontend_chat_history'] ) ) {
 		$_SESSION['frontend_chat_history'] = array();
@@ -131,19 +152,60 @@ function a8csp_handle_chat_message() {
 	}
 }
 
+/**
+ * Security: Handle nonce refresh for long chat sessions
+ */
+function a8csp_handle_nonce_refresh() {
+	// Security: Rate limiting for nonce refresh (max 1 per minute per IP)
+	$ip = $_SERVER['REMOTE_ADDR'] ?? '';
+	$rate_key = 'a8csp_nonce_refresh_' . md5( $ip );
+	$last_refresh = get_transient( $rate_key );
+	
+	if ( $last_refresh ) {
+		wp_send_json_error( 'Rate limited' );
+	}
+	
+	// Set rate limit
+	set_transient( $rate_key, time(), 60 ); // 1 minute
+	
+	// Return new nonce
+	wp_send_json_success( array(
+		'nonce' => wp_create_nonce( 'a8csp-chat' )
+	) );
+}
+
 function a8csp_render_site_chatbot_block( $attributes ) {
 	wp_enqueue_script( 'a8csp-site-chatbot-frontend' );
 	wp_enqueue_style( 'a8csp-site-chatbot-style' );
 
-	// Localize script for AJAX
+	// Security: Localize script with secure AJAX configuration
 	wp_localize_script( 'a8csp-site-chatbot-frontend', 'a8csp_ajax', array(
-		'ajax_url' => admin_url( 'admin-ajax.php' ),
+		'ajax_url' => esc_url( admin_url( 'admin-ajax.php' ) ),
 		'nonce'    => wp_create_nonce( 'a8csp-chat' ),
+		// Security: Add nonce refresh capability for long sessions
+		'nonce_refresh_action' => 'a8csp_refresh_nonce',
 	) );
 
-	// Start session for frontend
+	// Security: Start session with security settings
 	if ( ! session_id() ) {
+		// Security: Set secure session parameters
+		if ( ! headers_sent() ) {
+			session_set_cookie_params( array(
+				'lifetime' => 0, // Session cookie
+				'path' => '/',
+				'domain' => '',
+				'secure' => is_ssl(), // HTTPS only if available
+				'httponly' => true, // Prevent XSS access to session cookie
+				'samesite' => 'Strict' // CSRF protection
+			) );
+		}
 		session_start();
+		
+		// Security: Regenerate session ID to prevent fixation
+		if ( ! isset( $_SESSION['a8csp_session_started'] ) ) {
+			session_regenerate_id( true );
+			$_SESSION['a8csp_session_started'] = true;
+		}
 	}
 
 	$history = isset( $_SESSION['frontend_chat_history'] ) ? $_SESSION['frontend_chat_history'] : array();

@@ -5,32 +5,83 @@ if (!defined('ABSPATH')) {
 }
 
 function chat_with_site_get_post_content_as_text($post) {
+	// Security: Validate post object
+	if ( ! $post || ! is_object( $post ) || empty( $post->post_content ) ) {
+		return '';
+	}
+
 	// Get the post content
 	$content = $post->post_content;
+	
+	// Security: Limit content length to prevent resource exhaustion
+	// TODO: Have a summary of the content instead of the full content.
+	$max_content_length = 50000; // 50KB limit
+	if ( strlen( $content ) > $max_content_length ) {
+		$content = substr( $content, 0, $max_content_length );
+	}
 	
 	// Apply WordPress content filters (shortcodes, etc.)
 	$content = apply_filters('the_content', $content);
 	
-	// Remove images and other media
-	$content = preg_replace('/<img[^>]*>/i', '', $content);
-	$content = preg_replace('/<video[^>]*>.*?<\/video>/is', '', $content);
-	$content = preg_replace('/<audio[^>]*>.*?<\/audio>/is', '', $content);
-	$content = preg_replace('/<iframe[^>]*>.*?<\/iframe>/is', '', $content);
+	// Security: Use WordPress wp_kses for safe HTML sanitization
+	// Define allowed HTML tags for content processing (very restrictive for AI context)
+	$allowed_html = array(
+		'p' => array(),
+		'br' => array(),
+		'strong' => array(),
+		'b' => array(),
+		'em' => array(),
+		'i' => array(),
+		'h1' => array(),
+		'h2' => array(),
+		'h3' => array(),
+		'h4' => array(),
+		'h5' => array(),
+		'h6' => array(),
+		'ul' => array(),
+		'ol' => array(),
+		'li' => array(),
+		'blockquote' => array(),
+		// Note: No script, style, img, video, audio, iframe, object, embed tags allowed
+	);
 	
-	// Strip all HTML tags
-	$content = strip_tags($content);
+	// Security: Sanitize with wp_kses - removes all dangerous HTML
+	$content = wp_kses( $content, $allowed_html );
+	
+	// Strip remaining HTML tags to get plain text for AI context
+	$content = strip_tags( $content );
 	
 	// Clean up whitespace
-	$content = preg_replace('/\s+/', ' ', $content);
-	$content = trim($content);
+	$content = preg_replace( '/\s+/', ' ', $content );
+	$content = trim( $content );
+	
+	// Security: Validate title
+	$title = ! empty( $post->post_title ) ? sanitize_text_field( $post->post_title ) : '';
 	
 	// Combine title and content for better context
-	$full_content = $post->post_title . "\n\n" . $content;
+	$full_content = $title . "\n\n" . $content;
+	
+	// Security: Final length check
+	if ( strlen( $full_content ) > $max_content_length ) {
+		$full_content = substr( $full_content, 0, $max_content_length );
+	}
 	
 	return $full_content;
 }
 
 function chat_with_site_bulk_sync_posts($post_ids) {
+	// Security: Limit batch size to prevent resource exhaustion
+	// TODO: Process as an asynchronous queue.
+	$max_batch_size = 50;
+	if ( count( $post_ids ) > $max_batch_size ) {
+		return array(
+			'success_count' => 0,
+			'error_count' => 1,
+			'successful_posts' => array(),
+			'errors' => array( "Batch size limited to {$max_batch_size} posts for security. Please sync in smaller batches." ),
+		);
+	}
+
 	$results = array(
 		'success_count' => 0,
 		'error_count' => 0,
@@ -39,6 +90,13 @@ function chat_with_site_bulk_sync_posts($post_ids) {
 	);
 	
 	foreach ($post_ids as $post_id) {
+		// Security: Validate post ID and existence
+		$post_id = intval( $post_id );
+		if ( $post_id <= 0 ) {
+			$results['error_count']++;
+			$results['errors'][] = "Invalid post ID: {$post_id}";
+			continue;
+		}
 		$post = get_post($post_id);
 		
 		if (!$post) {
@@ -132,13 +190,32 @@ function chat_with_site_sync_page() {
 	
 	// Handle form submission (bulk sync)
 	if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['sync_posts'])) {
+		// Security: Verify nonce for CSRF protection
+		if ( ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce( $_POST['_wpnonce'], 'a8csp_bulk_sync' ) ) {
+			wp_die( __( 'Security check failed. Please try again.', 'a8csp-site-chatbot' ), 403 );
+		}
+
+		// Security: Check user capabilities
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( __( 'You do not have permission to perform this action.', 'a8csp-site-chatbot' ), 403 );
+		}
+
 		if (!empty($missing)) {
 			echo '<div class="notice notice-error"><p>Cannot sync: Required settings are missing. Please configure the plugin settings.</p></div>';
 		} else {
-			$post_ids = isset($_POST['post_ids']) ? array_map('intval', $_POST['post_ids']) : [];
+			// Security: Validate and sanitize post IDs
+			$post_ids = array();
+			if ( isset( $_POST['post_ids'] ) && is_array( $_POST['post_ids'] ) ) {
+				foreach ( $_POST['post_ids'] as $post_id ) {
+					$post_id = intval( $post_id );
+					if ( $post_id > 0 && get_post( $post_id ) ) {
+						$post_ids[] = $post_id;
+					}
+				}
+			}
 			
 			if (empty($post_ids)) {
-				echo '<div class="notice notice-error"><p>No posts selected for sync.</p></div>';
+				echo '<div class="notice notice-error"><p>No valid posts selected for sync.</p></div>';
 			} else {
 				$sync_results = chat_with_site_bulk_sync_posts($post_ids);
 				
@@ -167,28 +244,62 @@ function chat_with_site_sync_page() {
 		}
 	}
 
-	// Get filter values
-	$post_type = isset($_GET['content_type']) ? sanitize_text_field($_GET['content_type']) : 'post';
-	$category = isset($_GET['category']) ? intval($_GET['category']) : 0;
-	$tag = isset($_GET['tag']) ? intval($_GET['tag']) : 0;
-	$paged = isset($_GET['paged']) ? intval($_GET['paged']) : 1;
+	// Security: Validate and sanitize filter values
+	$post_type = 'post'; // Default
+	if ( isset( $_GET['content_type'] ) ) {
+		$requested_type = sanitize_text_field( $_GET['content_type'] );
+		// Security: Only allow public post types
+		$allowed_types = get_post_types( array( 'public' => true ), 'names' );
+		if ( in_array( $requested_type, $allowed_types, true ) ) {
+			$post_type = $requested_type;
+		}
+	}
 
-	// Query posts
-	$args = [
+	$category = 0;
+	if ( isset( $_GET['category'] ) ) {
+		$category = intval( $_GET['category'] );
+		// Security: Validate category exists
+		if ( $category > 0 && ! term_exists( $category, 'category' ) ) {
+			$category = 0;
+		}
+	}
+
+	$tag = 0;
+	if ( isset( $_GET['tag'] ) ) {
+		$tag = intval( $_GET['tag'] );
+		// Security: Validate tag exists
+		if ( $tag > 0 && ! term_exists( $tag, 'post_tag' ) ) {
+			$tag = 0;
+		}
+	}
+
+	$paged = 1;
+	if ( isset( $_GET['paged'] ) ) {
+		$paged = intval( $_GET['paged'] );
+		// Security: Ensure positive page number
+		$paged = max( 1, $paged );
+	}
+
+	// Security: Build query args with validated inputs
+	$args = array(
 		'post_type' => $post_type,
-		'posts_per_page' => 20,
-		'post_status' => 'publish',
+		'posts_per_page' => 20, // Limit to prevent resource exhaustion
+		'post_status' => 'publish', // Only public posts
 		'paged' => $paged,
-	];
-	if ($post_type === 'post') {
-		if ($category) {
+		'no_found_rows' => false, // Need for pagination
+	);
+
+	// Security: Only add filters for 'post' type to prevent taxonomy confusion
+	if ( $post_type === 'post' ) {
+		if ( $category > 0 ) {
 			$args['cat'] = $category;
 		}
-		if ($tag) {
+		if ( $tag > 0 ) {
 			$args['tag_id'] = $tag;
 		}
 	}
-	$posts_query = new WP_Query($args);
+
+	$posts_query = new WP_Query( $args );
 	$posts = $posts_query->posts;
 
 	// Get post types, categories, tags for filters
@@ -197,97 +308,100 @@ function chat_with_site_sync_page() {
 	$tags = get_tags();
 
 ?>
-<div class="wrap">
-	<h1>Content Library</h1>
+	<div class="wrap">
+		<h1>Content Library</h1>
 
-	<form method="get" action="<?php echo admin_url('admin.php'); ?>">
-		<input type="hidden" name="page" value="chat-with-site-sync">
-		<label for="content_type">Post Type:</label>
-		<select name="content_type" id="content_type">
-			<?php foreach ($post_types as $pt) : ?>
-				<option value="<?php echo esc_attr($pt); ?>" <?php selected($post_type, $pt); ?>><?php echo esc_html($pt); ?></option>
-			<?php endforeach; ?>
-		</select>
-		<?php if ($post_type === 'post') : ?>
-			<label for="category">Category:</label>
-			<select name="category" id="category">
-				<option value="0">All Categories</option>
-				<?php foreach ($categories as $cat) : ?>
-					<option value="<?php echo esc_attr($cat->term_id); ?>" <?php selected($category, $cat->term_id); ?>><?php echo esc_html($cat->name); ?></option>
+		<form method="get" action="<?php echo admin_url('admin.php'); ?>">
+			<input type="hidden" name="page" value="chat-with-site-sync">
+			<label for="content_type">Post Type:</label>
+			<select name="content_type" id="content_type">
+				<?php foreach ($post_types as $pt) : ?>
+					<option value="<?php echo esc_attr($pt); ?>" <?php selected($post_type, $pt); ?>><?php echo esc_html($pt); ?></option>
 				<?php endforeach; ?>
 			</select>
-			<label for="tag">Tag:</label>
-			<select name="tag" id="tag">
-				<option value="0">All Tags</option>
-				<?php foreach ($tags as $t) : ?>
-					<option value="<?php echo esc_attr($t->term_id); ?>" <?php selected($tag, $t->term_id); ?>><?php echo esc_html($t->name); ?></option>
-				<?php endforeach; ?>
-			</select>
-		<?php endif; ?>
-		<button type="submit">Filter</button>
-	</form>
-	<form method="post">
-		<?php if (empty($posts)) : ?>
-			<p>No posts found for the selected filters.</p>
-		<?php else : ?>
-			<table class="wp-list-table widefat fixed striped">
-				<thead>
-					<tr>
-						<th><input type="checkbox" id="select-all" onclick="document.querySelectorAll('input[name=\'post_ids[]\']').forEach(cb => cb.checked = this.checked);"></th>
-						<th>Title</th>
-						<th>Post Type</th>
-						<th>Pinecone Status</th>
-						<th>Date</th>
-					</tr>
-				</thead>
-				<tbody>
-					<?php foreach ($posts as $post) : 
-						$sync_status = get_post_meta($post->ID, '_pinecone_synced', true);
-						$sync_date = get_post_meta($post->ID, '_pinecone_sync_date', true);
-						$is_synced = ($sync_status === 'synced');
-					?>
-						<tr>
-							<td><input type="checkbox" name="post_ids[]" value="<?php echo esc_attr($post->ID); ?>"></td>
-							<td><?php echo esc_html($post->post_title); ?></td>
-							<td><?php echo esc_html($post->post_type); ?></td>
-							<td>
-								<?php if ($is_synced) : ?>
-									<span style="color: #46b450;">
-										<span class="dashicons dashicons-yes-alt"></span>
-										In Pinecone
-									</span>
-									<?php if ($sync_date) : 
-										$formatted_date = date('M j, Y g:i A', strtotime($sync_date));
-									?>
-										<br><small style="color: #666;">Synced: <?php echo esc_html($formatted_date); ?></small>
-									<?php endif; ?>
-								<?php else : ?>
-									<span style="color: #dc3232;">
-										<span class="dashicons dashicons-dismiss"></span>
-										Not in Pinecone
-									</span>
-								<?php endif; ?>
-							</td>
-							<td><?php echo esc_html($post->post_date); ?></td>
-						</tr>
+			<?php if ($post_type === 'post') : ?>
+				<label for="category">Category:</label>
+				<select name="category" id="category">
+					<option value="0">All Categories</option>
+					<?php foreach ($categories as $cat) : ?>
+						<option value="<?php echo esc_attr($cat->term_id); ?>" <?php selected($category, $cat->term_id); ?>><?php echo esc_html($cat->name); ?></option>
 					<?php endforeach; ?>
-				</tbody>
-			</table>
-			<?php
-			// Pagination
-			$big = 999999999; // need an unlikely integer
-			echo paginate_links(array(
-				'base' => str_replace($big, '%#%', get_pagenum_link($big)),
-				'format' => '?paged=%#%',
-				'current' => max(1, $paged),
-				'total' => $posts_query->max_num_pages,
-				'type' => 'plain',
-			));
+				</select>
+				<label for="tag">Tag:</label>
+				<select name="tag" id="tag">
+					<option value="0">All Tags</option>
+					<?php foreach ($tags as $t) : ?>
+						<option value="<?php echo esc_attr($t->term_id); ?>" <?php selected($tag, $t->term_id); ?>><?php echo esc_html($t->name); ?></option>
+					<?php endforeach; ?>
+				</select>
+			<?php endif; ?>
+			<button type="submit">Filter</button>
+		</form>
+		<form method="post">
+			<?php 
+			// Security: Add nonce field for CSRF protection
+			wp_nonce_field( 'a8csp_bulk_sync' );
 			?>
-		<?php endif; ?>
-		
-		<button type="submit" name="sync_posts" class="button button-primary">Sync Selected</button>
-	</form>
-</div>
+			<?php if (empty($posts)) : ?>
+				<p>No posts found for the selected filters.</p>
+			<?php else : ?>
+				<table class="wp-list-table widefat fixed striped">
+					<thead>
+						<tr>
+							<th><input type="checkbox" id="select-all" onclick="document.querySelectorAll('input[name=\'post_ids[]\']').forEach(cb => cb.checked = this.checked);"></th>
+							<th>Title</th>
+							<th>Post Type</th>
+							<th>Pinecone Status</th>
+							<th>Date</th>
+						</tr>
+					</thead>
+					<tbody>
+						<?php foreach ($posts as $post) : 
+							$sync_status = get_post_meta($post->ID, '_pinecone_synced', true);
+							$sync_date = get_post_meta($post->ID, '_pinecone_sync_date', true);
+							$is_synced = ($sync_status === 'synced');
+						?>
+							<tr>
+								<td><input type="checkbox" name="post_ids[]" value="<?php echo esc_attr($post->ID); ?>"></td>
+								<td><?php echo esc_html($post->post_title); ?></td>
+								<td><?php echo esc_html($post->post_type); ?></td>
+								<td>
+									<?php if ($is_synced) : ?>
+										<span style="color: #46b450;">
+											<span class="dashicons dashicons-yes-alt"></span>
+											In Pinecone
+										</span>
+										<?php if ($sync_date) : 
+											$formatted_date = date('M j, Y g:i A', strtotime($sync_date));
+										?>
+											<br><small style="color: #666;">Synced: <?php echo esc_html($formatted_date); ?></small>
+										<?php endif; ?>
+									<?php else : ?>
+										<span style="color: #dc3232;">
+											<span class="dashicons dashicons-dismiss"></span>
+											Not in Pinecone
+										</span>
+									<?php endif; ?>
+								</td>
+								<td><?php echo esc_html($post->post_date); ?></td>
+							</tr>
+						<?php endforeach; ?>
+					</tbody>
+				</table>
+				<?php
+				// Pagination
+				$big = 999999999; // need an unlikely integer
+				echo paginate_links(array(
+					'base' => str_replace($big, '%#%', get_pagenum_link($big)),
+					'format' => '?paged=%#%',
+					'current' => max(1, $paged),
+					'total' => $posts_query->max_num_pages,
+					'type' => 'plain',
+				));
+				?>
+			<?php endif; ?>
+			<button type="submit" name="sync_posts" class="button button-primary">Sync Selected</button>
+		</form>
+	</div>
 <?php
 }

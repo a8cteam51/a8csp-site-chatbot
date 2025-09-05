@@ -16,6 +16,29 @@ document.addEventListener( 'DOMContentLoaded', () => {
 		return;
 	}
 
+	// Security: Function to refresh nonce if expired
+	async function refreshNonceIfNeeded() {
+		try {
+			const response = await fetch( a8csp_ajax.ajax_url, {
+				method: 'POST',
+				body: new URLSearchParams({
+					action: 'a8csp_refresh_nonce'
+				})
+			});
+
+			if ( response.ok ) {
+				const result = await response.json();
+				if ( result.success && result.data.nonce ) {
+					a8csp_ajax.nonce = result.data.nonce;
+					return true;
+				}
+			}
+		} catch ( error ) {
+			console.error( 'A8CSP Chat: Nonce refresh failed', error );
+		}
+		return false;
+	}
+
 	// Handle Enter key to submit (but not Shift+Enter)
 	input.addEventListener( 'keydown', ( e ) => {
 		if ( e.key === 'Enter' && ! e.shiftKey ) {
@@ -94,6 +117,42 @@ document.addEventListener( 'DOMContentLoaded', () => {
 				botMsg.appendChild( responseContent );
 				history.appendChild( botMsg );
 			} else {
+				// Security: Handle nonce expiration
+				if ( result.data === 'Invalid nonce' ) {
+					console.log( 'A8CSP Chat: Nonce expired, attempting refresh...' );
+					const refreshed = await refreshNonceIfNeeded();
+					if ( refreshed ) {
+						// Retry the request with new nonce
+						const retryFormData = new FormData();
+						retryFormData.append( 'action', 'a8csp_chat_message' );
+						retryFormData.append( 'message', message );
+						retryFormData.append( 'nonce', a8csp_ajax.nonce );
+
+						const retryResponse = await fetch( a8csp_ajax.ajax_url, {
+							method: 'POST',
+							body: retryFormData
+						} );
+
+						if ( retryResponse.ok ) {
+							const retryResult = await retryResponse.json();
+							if ( retryResult.success ) {
+								// Add bot response from retry
+								const botMsg = document.createElement( 'div' );
+								botMsg.className = 'a8csp-chat-message bot-message';
+								const botLabel = document.createElement( 'strong' );
+								botLabel.textContent = 'Assistant:';
+								botMsg.appendChild( botLabel );
+								
+								const responseContent = document.createElement( 'span' );
+								responseContent.innerHTML = ' ' + ( typeof retryResult.data === 'string' ? retryResult.data : String( retryResult.data ) );
+								botMsg.appendChild( responseContent );
+								history.appendChild( botMsg );
+								return; // Success, exit here
+							}
+						}
+					}
+				}
+
 				// Add error message
 				const errorMsg = document.createElement( 'div' );
 				errorMsg.className = 'a8csp-chat-message bot-message error';
