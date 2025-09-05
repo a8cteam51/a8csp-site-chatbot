@@ -5,17 +5,33 @@ if (!defined('ABSPATH')) {
 }
 
 function chat_with_site_get_post_content_as_text($post) {
+	// Security: Validate post object
+	if ( ! $post || ! is_object( $post ) || empty( $post->post_content ) ) {
+		return '';
+	}
+
 	// Get the post content
 	$content = $post->post_content;
+	
+	// Security: Limit content length to prevent resource exhaustion
+	// TODO: Have a summary of the content instead of the full content.
+	$max_content_length = 50000; // 50KB limit
+	if ( strlen( $content ) > $max_content_length ) {
+		$content = substr( $content, 0, $max_content_length );
+	}
 	
 	// Apply WordPress content filters (shortcodes, etc.)
 	$content = apply_filters('the_content', $content);
 	
-	// Remove images and other media
+	// Security: Remove potentially dangerous content
+	$content = preg_replace('/<script[^>]*>.*?<\/script>/is', '', $content);
+	$content = preg_replace('/<style[^>]*>.*?<\/style>/is', '', $content);
 	$content = preg_replace('/<img[^>]*>/i', '', $content);
 	$content = preg_replace('/<video[^>]*>.*?<\/video>/is', '', $content);
 	$content = preg_replace('/<audio[^>]*>.*?<\/audio>/is', '', $content);
 	$content = preg_replace('/<iframe[^>]*>.*?<\/iframe>/is', '', $content);
+	$content = preg_replace('/<object[^>]*>.*?<\/object>/is', '', $content);
+	$content = preg_replace('/<embed[^>]*>/i', '', $content);
 	
 	// Strip all HTML tags
 	$content = strip_tags($content);
@@ -24,13 +40,33 @@ function chat_with_site_get_post_content_as_text($post) {
 	$content = preg_replace('/\s+/', ' ', $content);
 	$content = trim($content);
 	
+	// Security: Validate title
+	$title = ! empty( $post->post_title ) ? sanitize_text_field( $post->post_title ) : '';
+	
 	// Combine title and content for better context
-	$full_content = $post->post_title . "\n\n" . $content;
+	$full_content = $title . "\n\n" . $content;
+	
+	// Security: Final length check
+	if ( strlen( $full_content ) > $max_content_length ) {
+		$full_content = substr( $full_content, 0, $max_content_length );
+	}
 	
 	return $full_content;
 }
 
 function chat_with_site_bulk_sync_posts($post_ids) {
+	// Security: Limit batch size to prevent resource exhaustion
+	// TODO: Process as an asynchronous queue.
+	$max_batch_size = 50;
+	if ( count( $post_ids ) > $max_batch_size ) {
+		return array(
+			'success_count' => 0,
+			'error_count' => 1,
+			'successful_posts' => array(),
+			'errors' => array( "Batch size limited to {$max_batch_size} posts for security. Please sync in smaller batches." ),
+		);
+	}
+
 	$results = array(
 		'success_count' => 0,
 		'error_count' => 0,
@@ -39,6 +75,13 @@ function chat_with_site_bulk_sync_posts($post_ids) {
 	);
 	
 	foreach ($post_ids as $post_id) {
+		// Security: Validate post ID and existence
+		$post_id = intval( $post_id );
+		if ( $post_id <= 0 ) {
+			$results['error_count']++;
+			$results['errors'][] = "Invalid post ID: {$post_id}";
+			continue;
+		}
 		$post = get_post($post_id);
 		
 		if (!$post) {
@@ -132,13 +175,32 @@ function chat_with_site_sync_page() {
 	
 	// Handle form submission (bulk sync)
 	if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['sync_posts'])) {
+		// Security: Verify nonce for CSRF protection
+		if ( ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce( $_POST['_wpnonce'], 'a8csp_bulk_sync' ) ) {
+			wp_die( __( 'Security check failed. Please try again.', 'a8csp-site-chatbot' ), 403 );
+		}
+
+		// Security: Check user capabilities
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( __( 'You do not have permission to perform this action.', 'a8csp-site-chatbot' ), 403 );
+		}
+
 		if (!empty($missing)) {
 			echo '<div class="notice notice-error"><p>Cannot sync: Required settings are missing. Please configure the plugin settings.</p></div>';
 		} else {
-			$post_ids = isset($_POST['post_ids']) ? array_map('intval', $_POST['post_ids']) : [];
+			// Security: Validate and sanitize post IDs
+			$post_ids = array();
+			if ( isset( $_POST['post_ids'] ) && is_array( $_POST['post_ids'] ) ) {
+				foreach ( $_POST['post_ids'] as $post_id ) {
+					$post_id = intval( $post_id );
+					if ( $post_id > 0 && get_post( $post_id ) ) {
+						$post_ids[] = $post_id;
+					}
+				}
+			}
 			
 			if (empty($post_ids)) {
-				echo '<div class="notice notice-error"><p>No posts selected for sync.</p></div>';
+				echo '<div class="notice notice-error"><p>No valid posts selected for sync.</p></div>';
 			} else {
 				$sync_results = chat_with_site_bulk_sync_posts($post_ids);
 				
@@ -167,28 +229,62 @@ function chat_with_site_sync_page() {
 		}
 	}
 
-	// Get filter values
-	$post_type = isset($_GET['content_type']) ? sanitize_text_field($_GET['content_type']) : 'post';
-	$category = isset($_GET['category']) ? intval($_GET['category']) : 0;
-	$tag = isset($_GET['tag']) ? intval($_GET['tag']) : 0;
-	$paged = isset($_GET['paged']) ? intval($_GET['paged']) : 1;
+	// Security: Validate and sanitize filter values
+	$post_type = 'post'; // Default
+	if ( isset( $_GET['content_type'] ) ) {
+		$requested_type = sanitize_text_field( $_GET['content_type'] );
+		// Security: Only allow public post types
+		$allowed_types = get_post_types( array( 'public' => true ), 'names' );
+		if ( in_array( $requested_type, $allowed_types, true ) ) {
+			$post_type = $requested_type;
+		}
+	}
 
-	// Query posts
-	$args = [
+	$category = 0;
+	if ( isset( $_GET['category'] ) ) {
+		$category = intval( $_GET['category'] );
+		// Security: Validate category exists
+		if ( $category > 0 && ! term_exists( $category, 'category' ) ) {
+			$category = 0;
+		}
+	}
+
+	$tag = 0;
+	if ( isset( $_GET['tag'] ) ) {
+		$tag = intval( $_GET['tag'] );
+		// Security: Validate tag exists
+		if ( $tag > 0 && ! term_exists( $tag, 'post_tag' ) ) {
+			$tag = 0;
+		}
+	}
+
+	$paged = 1;
+	if ( isset( $_GET['paged'] ) ) {
+		$paged = intval( $_GET['paged'] );
+		// Security: Ensure positive page number
+		$paged = max( 1, $paged );
+	}
+
+	// Security: Build query args with validated inputs
+	$args = array(
 		'post_type' => $post_type,
-		'posts_per_page' => 20,
-		'post_status' => 'publish',
+		'posts_per_page' => 20, // Limit to prevent resource exhaustion
+		'post_status' => 'publish', // Only public posts
 		'paged' => $paged,
-	];
-	if ($post_type === 'post') {
-		if ($category) {
+		'no_found_rows' => false, // Need for pagination
+	);
+
+	// Security: Only add filters for 'post' type to prevent taxonomy confusion
+	if ( $post_type === 'post' ) {
+		if ( $category > 0 ) {
 			$args['cat'] = $category;
 		}
-		if ($tag) {
+		if ( $tag > 0 ) {
 			$args['tag_id'] = $tag;
 		}
 	}
-	$posts_query = new WP_Query($args);
+
+	$posts_query = new WP_Query( $args );
 	$posts = $posts_query->posts;
 
 	// Get post types, categories, tags for filters
@@ -227,6 +323,10 @@ function chat_with_site_sync_page() {
 		<button type="submit">Filter</button>
 	</form>
 	<form method="post">
+		<?php 
+		// Security: Add nonce field for CSRF protection
+		wp_nonce_field( 'a8csp_bulk_sync' );
+		?>
 		<?php if (empty($posts)) : ?>
 			<p>No posts found for the selected filters.</p>
 		<?php else : ?>
@@ -285,8 +385,7 @@ function chat_with_site_sync_page() {
 			));
 			?>
 		<?php endif; ?>
-		
-		<button type="submit" name="sync_posts" class="button button-primary">Sync Selected</button>
+		<button type="submit" name="sync_posts">Sync Selected</button>
 	</form>
 </div>
 <?php
