@@ -308,100 +308,100 @@ function chat_with_site_sync_page() {
 	$tags = get_tags();
 
 ?>
-<div class="wrap">
-	<h1>Content Library</h1>
+	<div class="wrap">
+		<h1>Content Library</h1>
 
-	<form method="get" action="<?php echo admin_url('admin.php'); ?>">
-		<input type="hidden" name="page" value="chat-with-site-sync">
-		<label for="content_type">Post Type:</label>
-		<select name="content_type" id="content_type">
-			<?php foreach ($post_types as $pt) : ?>
-				<option value="<?php echo esc_attr($pt); ?>" <?php selected($post_type, $pt); ?>><?php echo esc_html($pt); ?></option>
-			<?php endforeach; ?>
-		</select>
-		<?php if ($post_type === 'post') : ?>
-			<label for="category">Category:</label>
-			<select name="category" id="category">
-				<option value="0">All Categories</option>
-				<?php foreach ($categories as $cat) : ?>
-					<option value="<?php echo esc_attr($cat->term_id); ?>" <?php selected($category, $cat->term_id); ?>><?php echo esc_html($cat->name); ?></option>
+		<form method="get" action="<?php echo admin_url('admin.php'); ?>">
+			<input type="hidden" name="page" value="chat-with-site-sync">
+			<label for="content_type">Post Type:</label>
+			<select name="content_type" id="content_type">
+				<?php foreach ($post_types as $pt) : ?>
+					<option value="<?php echo esc_attr($pt); ?>" <?php selected($post_type, $pt); ?>><?php echo esc_html($pt); ?></option>
 				<?php endforeach; ?>
 			</select>
-			<label for="tag">Tag:</label>
-			<select name="tag" id="tag">
-				<option value="0">All Tags</option>
-				<?php foreach ($tags as $t) : ?>
-					<option value="<?php echo esc_attr($t->term_id); ?>" <?php selected($tag, $t->term_id); ?>><?php echo esc_html($t->name); ?></option>
-				<?php endforeach; ?>
-			</select>
-		<?php endif; ?>
-		<button type="submit">Filter</button>
-	</form>
-	<form method="post">
-		<?php 
-		// Security: Add nonce field for CSRF protection
-		wp_nonce_field( 'a8csp_bulk_sync' );
-		?>
-		<?php if (empty($posts)) : ?>
-			<p>No posts found for the selected filters.</p>
-		<?php else : ?>
-			<table class="wp-list-table widefat fixed striped">
-				<thead>
-					<tr>
-						<th><input type="checkbox" id="select-all" onclick="document.querySelectorAll('input[name=\'post_ids[]\']').forEach(cb => cb.checked = this.checked);"></th>
-						<th>Title</th>
-						<th>Post Type</th>
-						<th>Pinecone Status</th>
-						<th>Date</th>
-					</tr>
-				</thead>
-				<tbody>
-					<?php foreach ($posts as $post) : 
-						$sync_status = get_post_meta($post->ID, '_pinecone_synced', true);
-						$sync_date = get_post_meta($post->ID, '_pinecone_sync_date', true);
-						$is_synced = ($sync_status === 'synced');
-					?>
-						<tr>
-							<td><input type="checkbox" name="post_ids[]" value="<?php echo esc_attr($post->ID); ?>"></td>
-							<td><?php echo esc_html($post->post_title); ?></td>
-							<td><?php echo esc_html($post->post_type); ?></td>
-							<td>
-								<?php if ($is_synced) : ?>
-									<span style="color: #46b450;">
-										<span class="dashicons dashicons-yes-alt"></span>
-										In Pinecone
-									</span>
-									<?php if ($sync_date) : 
-										$formatted_date = date('M j, Y g:i A', strtotime($sync_date));
-									?>
-										<br><small style="color: #666;">Synced: <?php echo esc_html($formatted_date); ?></small>
-									<?php endif; ?>
-								<?php else : ?>
-									<span style="color: #dc3232;">
-										<span class="dashicons dashicons-dismiss"></span>
-										Not in Pinecone
-									</span>
-								<?php endif; ?>
-							</td>
-							<td><?php echo esc_html($post->post_date); ?></td>
-						</tr>
+			<?php if ($post_type === 'post') : ?>
+				<label for="category">Category:</label>
+				<select name="category" id="category">
+					<option value="0">All Categories</option>
+					<?php foreach ($categories as $cat) : ?>
+						<option value="<?php echo esc_attr($cat->term_id); ?>" <?php selected($category, $cat->term_id); ?>><?php echo esc_html($cat->name); ?></option>
 					<?php endforeach; ?>
-				</tbody>
-			</table>
-			<?php
-			// Pagination
-			$big = 999999999; // need an unlikely integer
-			echo paginate_links(array(
-				'base' => str_replace($big, '%#%', get_pagenum_link($big)),
-				'format' => '?paged=%#%',
-				'current' => max(1, $paged),
-				'total' => $posts_query->max_num_pages,
-				'type' => 'plain',
-			));
+				</select>
+				<label for="tag">Tag:</label>
+				<select name="tag" id="tag">
+					<option value="0">All Tags</option>
+					<?php foreach ($tags as $t) : ?>
+						<option value="<?php echo esc_attr($t->term_id); ?>" <?php selected($tag, $t->term_id); ?>><?php echo esc_html($t->name); ?></option>
+					<?php endforeach; ?>
+				</select>
+			<?php endif; ?>
+			<button type="submit">Filter</button>
+		</form>
+		<form method="post">
+			<?php 
+			// Security: Add nonce field for CSRF protection
+			wp_nonce_field( 'a8csp_bulk_sync' );
 			?>
-		<?php endif; ?>
-		<button type="submit" name="sync_posts" class="button button-primary">Sync Selected</button>
-	</form>
-</div>
+			<?php if (empty($posts)) : ?>
+				<p>No posts found for the selected filters.</p>
+			<?php else : ?>
+				<table class="wp-list-table widefat fixed striped">
+					<thead>
+						<tr>
+							<th><input type="checkbox" id="select-all" onclick="document.querySelectorAll('input[name=\'post_ids[]\']').forEach(cb => cb.checked = this.checked);"></th>
+							<th>Title</th>
+							<th>Post Type</th>
+							<th>Pinecone Status</th>
+							<th>Date</th>
+						</tr>
+					</thead>
+					<tbody>
+						<?php foreach ($posts as $post) : 
+							$sync_status = get_post_meta($post->ID, '_pinecone_synced', true);
+							$sync_date = get_post_meta($post->ID, '_pinecone_sync_date', true);
+							$is_synced = ($sync_status === 'synced');
+						?>
+							<tr>
+								<td><input type="checkbox" name="post_ids[]" value="<?php echo esc_attr($post->ID); ?>"></td>
+								<td><?php echo esc_html($post->post_title); ?></td>
+								<td><?php echo esc_html($post->post_type); ?></td>
+								<td>
+									<?php if ($is_synced) : ?>
+										<span style="color: #46b450;">
+											<span class="dashicons dashicons-yes-alt"></span>
+											In Pinecone
+										</span>
+										<?php if ($sync_date) : 
+											$formatted_date = date('M j, Y g:i A', strtotime($sync_date));
+										?>
+											<br><small style="color: #666;">Synced: <?php echo esc_html($formatted_date); ?></small>
+										<?php endif; ?>
+									<?php else : ?>
+										<span style="color: #dc3232;">
+											<span class="dashicons dashicons-dismiss"></span>
+											Not in Pinecone
+										</span>
+									<?php endif; ?>
+								</td>
+								<td><?php echo esc_html($post->post_date); ?></td>
+							</tr>
+						<?php endforeach; ?>
+					</tbody>
+				</table>
+				<?php
+				// Pagination
+				$big = 999999999; // need an unlikely integer
+				echo paginate_links(array(
+					'base' => str_replace($big, '%#%', get_pagenum_link($big)),
+					'format' => '?paged=%#%',
+					'current' => max(1, $paged),
+					'total' => $posts_query->max_num_pages,
+					'type' => 'plain',
+				));
+				?>
+			<?php endif; ?>
+			<button type="submit" name="sync_posts" class="button button-primary">Sync Selected</button>
+		</form>
+	</div>
 <?php
 }

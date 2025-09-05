@@ -134,6 +134,13 @@ function get_bot_response($history) {
 				'b' => array(),
 				'em' => array(),
 				'i' => array(),
+				'a' => array(
+					'href' => array(),
+					'title' => array(),
+					'target' => array(),
+				),
+				'code' => array(),
+				'pre' => array(),
 				'h1' => array(),
 				'h2' => array(),
 				'h3' => array(),
@@ -189,7 +196,7 @@ function get_bot_response($history) {
 	}
 
 	$messages = [
-		['role' => 'system', 'content' => sanitize_textarea_field( $system_message )],
+		['role' => 'system', 'content' => $system_message],
 	];
 	
 	// Security: Use validated history instead of original
