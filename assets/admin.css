@@ -1,0 +1,11 @@
+/**
+ * A8CSP Site Chatbot - Admin Styles
+ * Styles for WordPress admin interface
+ */
+
+/* Settings Page Styles */
+.a8csp-settings .hndle[class] {
+	cursor: default;
+}
+
+/* Additional admin styles can be added here */
