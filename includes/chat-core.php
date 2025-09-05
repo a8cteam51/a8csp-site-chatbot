@@ -126,11 +126,31 @@ function get_bot_response($history) {
 			// Security: Process content safely
 			$content = apply_filters('the_content', $post->post_content);
 			
-			// Security: Remove potentially dangerous content
-			$content = preg_replace('/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/mi', '', $content);
-			$content = preg_replace('/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/mi', '', $content);
-			$clean_content = strip_tags($content);
-			$clean_content = trim($clean_content);
+			// Security: Use WordPress wp_kses for safe HTML sanitization
+			$allowed_html = array(
+				'p' => array(),
+				'br' => array(),
+				'strong' => array(),
+				'b' => array(),
+				'em' => array(),
+				'i' => array(),
+				'h1' => array(),
+				'h2' => array(),
+				'h3' => array(),
+				'h4' => array(),
+				'h5' => array(),
+				'h6' => array(),
+				'ul' => array(),
+				'ol' => array(),
+				'li' => array(),
+				'blockquote' => array(),
+				// Note: No dangerous tags like script, style, img, video, iframe, etc.
+			);
+			
+			// Security: Sanitize with wp_kses - removes all dangerous HTML
+			$content = wp_kses( $content, $allowed_html );
+			$clean_content = strip_tags( $content );
+			$clean_content = trim( $clean_content );
 			
 			// Security: Limit individual post content length
 			if ( strlen( $clean_content ) > 1000 ) {

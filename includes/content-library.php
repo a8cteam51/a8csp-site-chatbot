@@ -23,22 +23,37 @@ function chat_with_site_get_post_content_as_text($post) {
 	// Apply WordPress content filters (shortcodes, etc.)
 	$content = apply_filters('the_content', $content);
 	
-	// Security: Remove potentially dangerous content
-	$content = preg_replace('/<script[^>]*>.*?<\/script>/is', '', $content);
-	$content = preg_replace('/<style[^>]*>.*?<\/style>/is', '', $content);
-	$content = preg_replace('/<img[^>]*>/i', '', $content);
-	$content = preg_replace('/<video[^>]*>.*?<\/video>/is', '', $content);
-	$content = preg_replace('/<audio[^>]*>.*?<\/audio>/is', '', $content);
-	$content = preg_replace('/<iframe[^>]*>.*?<\/iframe>/is', '', $content);
-	$content = preg_replace('/<object[^>]*>.*?<\/object>/is', '', $content);
-	$content = preg_replace('/<embed[^>]*>/i', '', $content);
+	// Security: Use WordPress wp_kses for safe HTML sanitization
+	// Define allowed HTML tags for content processing (very restrictive for AI context)
+	$allowed_html = array(
+		'p' => array(),
+		'br' => array(),
+		'strong' => array(),
+		'b' => array(),
+		'em' => array(),
+		'i' => array(),
+		'h1' => array(),
+		'h2' => array(),
+		'h3' => array(),
+		'h4' => array(),
+		'h5' => array(),
+		'h6' => array(),
+		'ul' => array(),
+		'ol' => array(),
+		'li' => array(),
+		'blockquote' => array(),
+		// Note: No script, style, img, video, audio, iframe, object, embed tags allowed
+	);
 	
-	// Strip all HTML tags
-	$content = strip_tags($content);
+	// Security: Sanitize with wp_kses - removes all dangerous HTML
+	$content = wp_kses( $content, $allowed_html );
+	
+	// Strip remaining HTML tags to get plain text for AI context
+	$content = strip_tags( $content );
 	
 	// Clean up whitespace
-	$content = preg_replace('/\s+/', ' ', $content);
-	$content = trim($content);
+	$content = preg_replace( '/\s+/', ' ', $content );
+	$content = trim( $content );
 	
 	// Security: Validate title
 	$title = ! empty( $post->post_title ) ? sanitize_text_field( $post->post_title ) : '';
@@ -385,7 +400,7 @@ function chat_with_site_sync_page() {
 			));
 			?>
 		<?php endif; ?>
-		<button type="submit" name="sync_posts">Sync Selected</button>
+		<button type="submit" name="sync_posts" class="button button-primary">Sync Selected</button>
 	</form>
 </div>
 <?php
