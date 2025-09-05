@@ -33,6 +33,7 @@ function chat_with_site_settings_page() {
 		
 		<form method="post" action="options.php">
 			<?php
+			// Security: WordPress Settings API automatically handles nonces via settings_fields()
 			settings_fields('chat_with_site_settings');
 			do_settings_sections('chat_with_site_settings');
 			submit_button();
