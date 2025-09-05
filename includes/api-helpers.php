@@ -4,7 +4,7 @@ if (!defined('ABSPATH')) {
 	exit;
 }
 
-function chat_with_site_vectorize_content($content) {
+function a8csp_cws_vectorize_content($content) {
 	// Security: Validate and sanitize input
 	if ( empty( $content ) || ! is_string( $content ) ) {
 		error_log( 'A8CSP: Invalid content provided for vectorization' );
@@ -102,7 +102,7 @@ function chat_with_site_vectorize_content($content) {
 	return false;
 }
 
-function chat_with_site_upsert_to_pinecone($post_id, $embedding, $metadata) {
+function a8csp_cws_upsert_to_pinecone($post_id, $embedding, $metadata) {
 	// Security: Validate inputs
 	$post_id = intval( $post_id );
 	if ( $post_id <= 0 ) {
@@ -196,7 +196,7 @@ function chat_with_site_upsert_to_pinecone($post_id, $embedding, $metadata) {
 	return new WP_Error('pinecone_upsert_failed', 'Failed to upsert to Pinecone', array('status' => 500));
 }
 
-function get_openai_embedding($text) {
+function a8csp_cws_get_openai_embedding($text) {
 	// Security: Validate input
 	if ( empty( $text ) || ! is_string( $text ) ) {
 		error_log('A8CSP: Invalid text provided for embedding');
@@ -247,7 +247,7 @@ function get_openai_embedding($text) {
 	return [];
 }
 
-function query_pinecone($vector) {
+function a8csp_cws_query_pinecone($vector) {
 	// Security: Validate input vector
 	if ( ! is_array( $vector ) || empty( $vector ) ) {
 		error_log('A8CSP: Invalid vector provided for Pinecone query');
@@ -317,7 +317,7 @@ function query_pinecone($vector) {
 	return [];
 }
 
-function get_openai_completion($messages) {
+function a8csp_cws_get_openai_completion($messages) {
 	// Security: Validate input messages
 	if ( ! is_array( $messages ) || empty( $messages ) ) {
 		error_log('A8CSP: Invalid messages provided for OpenAI completion');
@@ -404,7 +404,7 @@ function get_openai_completion($messages) {
  * Convert Markdown to HTML using Parsedown library
  * Handles all standard Markdown syntax securely
  */
-function a8csp_markdown_to_html( $markdown ) {
+function a8csp_cws_markdown_to_html( $markdown ) {
 	if ( empty( $markdown ) ) {
 		return '';
 	}

@@ -4,7 +4,7 @@ if (!defined('ABSPATH')) {
 	exit;
 }
 
-function chat_with_site_get_post_content_as_text($post) {
+function a8csp_cws_get_post_content_as_text($post) {
 	// Security: Validate post object
 	if ( ! $post || ! is_object( $post ) || empty( $post->post_content ) ) {
 		return '';
@@ -69,7 +69,7 @@ function chat_with_site_get_post_content_as_text($post) {
 	return $full_content;
 }
 
-function chat_with_site_bulk_sync_posts($post_ids) {
+function a8csp_cws_bulk_sync_posts($post_ids) {
 	// Security: Limit batch size to prevent resource exhaustion
 	// TODO: Process as an asynchronous queue.
 	$max_batch_size = 50;
@@ -107,7 +107,7 @@ function chat_with_site_bulk_sync_posts($post_ids) {
 		
 		try {
 			// Step 1: Get post content as plain text
-			$post_content = chat_with_site_get_post_content_as_text($post);
+			$post_content = a8csp_cws_get_post_content_as_text($post);
 			
 			if (empty($post_content)) {
 				$results['error_count']++;
@@ -116,7 +116,7 @@ function chat_with_site_bulk_sync_posts($post_ids) {
 			}
 			
 			// Step 2: Generate embedding via OpenAI
-			$embedding = chat_with_site_vectorize_content($post_content);
+			$embedding = a8csp_cws_vectorize_content($post_content);
 			
 			if (empty($embedding)) {
 				$results['error_count']++;
@@ -160,7 +160,7 @@ function chat_with_site_bulk_sync_posts($post_ids) {
 			}
 			
 			// Step 4: Upsert to Pinecone
-			$result = chat_with_site_upsert_to_pinecone($post_id, $embedding, $metadata);
+			$result = a8csp_cws_upsert_to_pinecone($post_id, $embedding, $metadata);
 			
 			if (is_wp_error($result)) {
 				$results['error_count']++;
@@ -184,14 +184,14 @@ function chat_with_site_bulk_sync_posts($post_ids) {
 	return $results;
 }
 
-function chat_with_site_sync_page() {
-	$api_settings = chat_with_site_get_api_settings();
-	$missing = chat_with_site_check_required_settings($api_settings);
+function a8csp_cws_sync_page() {
+	$api_settings = a8csp_cws_get_api_settings();
+	$missing = a8csp_cws_check_required_settings($api_settings);
 	
 	// Handle form submission (bulk sync)
 	if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['sync_posts'])) {
 		// Security: Verify nonce for CSRF protection
-		if ( ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce( $_POST['_wpnonce'], 'a8csp_bulk_sync' ) ) {
+		if ( ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce( $_POST['_wpnonce'], 'a8csp_cws_bulk_sync' ) ) {
 			wp_die( __( 'Security check failed. Please try again.', 'a8csp-site-chatbot' ), 403 );
 		}
 
@@ -217,7 +217,7 @@ function chat_with_site_sync_page() {
 			if (empty($post_ids)) {
 				echo '<div class="notice notice-error"><p>No valid posts selected for sync.</p></div>';
 			} else {
-				$sync_results = chat_with_site_bulk_sync_posts($post_ids);
+				$sync_results = a8csp_cws_bulk_sync_posts($post_ids);
 				
 				if ($sync_results['success_count'] > 0) {
 					echo '<div class="notice notice-success"><p>';
@@ -340,7 +340,7 @@ function chat_with_site_sync_page() {
 		<form method="post">
 			<?php 
 			// Security: Add nonce field for CSRF protection
-			wp_nonce_field( 'a8csp_bulk_sync' );
+			wp_nonce_field( 'a8csp_cws_bulk_sync' );
 			?>
 			<?php if (empty($posts)) : ?>
 				<p>No posts found for the selected filters.</p>
