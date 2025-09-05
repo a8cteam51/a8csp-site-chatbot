@@ -18,7 +18,7 @@ function chat_with_site_settings_page() {
 	
 	?>
 	<div class="wrap">
-		<h1>Chat with Site Settings</h1>
+		<h1>51 Chatbot Settings</h1>
 		
 		<?php if (!empty($warnings)) : ?>
 			<div class="notice notice-warning">
@@ -31,37 +31,79 @@ function chat_with_site_settings_page() {
 			</div>
 		<?php endif; ?>
 		
-		<form method="post" action="options.php">
-			<?php
-			// Security: WordPress Settings API automatically handles nonces via settings_fields()
-			settings_fields('chat_with_site_settings');
-			do_settings_sections('chat_with_site_settings');
-			submit_button();
-			?>
-		</form>
-		
-		<div class="card" style="margin-top: 20px;">
-			<h3>Help</h3>
-			<p><strong>Pinecone Setup:</strong></p>
-			<ul>
-				<li>Create an account at <a href="https://pinecone.io" target="_blank">pinecone.io</a></li>
-				<li>Create an index with 1536 dimensions</li>
-				<li>Copy your API key and index URL</li>
-			</ul>
+		<div class="metabox-holder a8csp-settings">
+			<div class="postbox-container" style="width: 75%;">
+				<div class="meta-box-sortables">
+					<div class="postbox">
+						<div class="postbox-header">
+							<h2 class="hndle">Plugin Configuration</h2>
+						</div>
+						<div class="inside">
+							<form method="post" action="options.php">
+								<?php
+								// Security: WordPress Settings API automatically handles nonces via settings_fields()
+								settings_fields('chat_with_site_settings');
+								do_settings_sections('chat_with_site_settings');
+								submit_button('Save Settings', 'primary', 'submit', true, array('style' => 'margin-top: 20px;'));
+								?>
+							</form>
+						</div>
+					</div>
+				</div>
+			</div>
 			
-			<p><strong>OpenAI Setup:</strong></p>
-			<ul>
-				<li>Create an account at <a href="https://openai.com" target="_blank">openai.com</a></li>
-				<li>Generate an API key from your dashboard</li>
-				<li>Organization ID is optional (only needed for organizations)</li>
-			</ul>
+			<div class="postbox-container" style="width: 25%;">
+				<div class="meta-box-sortables">
+					<div class="postbox">
+						<div class="postbox-header">
+							<h2 class="hndle">Quick Help</h2>
+						</div>
+						<div class="inside">
+							<h4>API Keys Required</h4>
+							<p><small>Both Pinecone and OpenAI API keys are required for the chatbot to function.</small></p>
+							<p><small><strong>Pinecone</strong> stores embeddings (vector representations) of your content, enabling fast semantic search. <br><strong>OpenAI</strong> generates these embeddings, Pinecone's vector database is essential for efficiently finding relevant content when users ask questions.</small></p>
+							<p><small>API keys are stored securely on your WordPress database, and never logged or sent to any other servers.</small></p>
+
+							
+							<h4>Model Recommendations</h4>
+							<ul style="font-size: 12px; margin-left: 15px;">
+								<li><strong>Chat:</strong> gpt-4o-mini (cost-effective)</li>
+								<li><strong>Embeddings:</strong> text-embedding-3-small</li>
+							</ul>
+
+							<h4>Cost Optimization</h4>
+							<ul style="font-size: 12px; margin-left: 15px;">
+								<li>Sync only relevant content</li>
+								<li>Use shorter responses (fewer tokens)</li>
+								<li>Monitor API usage regularly</li>
+							</ul>
+						</div>
+					</div>
+				</div>
+			</div>
 		</div>
 	</div>
 	<?php
 }
 
-function chat_with_site_api_keys_section_callback() {
-	echo '<p>Configure your API keys and settings for Pinecone and OpenAI integration.</p>';
+function chat_with_site_pinecone_section_callback() {
+	echo '<p style="margin-top: 0;">Configure your Pinecone vector database settings. Pinecone stores the vectorized content for similarity search.</p>';
+	echo '<div style="background: #f9f9f9; border: 1px solid #ddd; padding: 15px; border-radius: 4px; margin-bottom: 20px;">';
+	echo '<strong>Pinecone Setup Steps:</strong><br>';
+	echo '1. Create an account at <a href="https://pinecone.io" target="_blank">pinecone.io</a><br>';
+	echo '2. Create an index with <strong>1536 dimensions</strong><br>';
+	echo '3. Copy your API key and index URL from the dashboard';
+	echo '</div>';
+}
+
+function chat_with_site_openai_section_callback() {
+	echo '<p style="margin-top: 0;">Configure your OpenAI API settings. OpenAI provides the embeddings and chat completion services.</p>';
+	echo '<div style="background: #f0f8ff; border: 1px solid #c3d9ff; padding: 15px; border-radius: 4px; margin-bottom: 20px;">';
+	echo '<strong>OpenAI Setup Steps:</strong><br>';
+	echo '1. Create an account at <a href="https://openai.com" target="_blank">openai.com</a><br>';
+	echo '2. Generate an API key from your dashboard<br>';
+	echo '3. Organization ID is optional (only needed for organizations)';
+	echo '</div>';
 }
 
 function chat_with_site_pinecone_api_key_callback() {
@@ -210,11 +252,19 @@ function chat_with_site_register_settings() {
 	// Register setting group
 	register_setting('chat_with_site_settings', 'a8csp_chat_with_site_options', 'chat_with_site_validate_options');
 	
-	// API Keys Section
+	// Pinecone Settings Section
 	add_settings_section(
-		'api_keys_section',
-		'API Configuration',
-		'chat_with_site_api_keys_section_callback',
+		'pinecone_section',
+		'Pinecone Configuration',
+		'chat_with_site_pinecone_section_callback',
+		'chat_with_site_settings'
+	);
+	
+	// OpenAI Settings Section  
+	add_settings_section(
+		'openai_section',
+		'OpenAI Configuration',
+		'chat_with_site_openai_section_callback',
 		'chat_with_site_settings'
 	);
 	
@@ -224,7 +274,7 @@ function chat_with_site_register_settings() {
 		'Pinecone API Key',
 		'chat_with_site_pinecone_api_key_callback',
 		'chat_with_site_settings',
-		'api_keys_section'
+		'pinecone_section'
 	);
 	
 	add_settings_field(
@@ -232,16 +282,17 @@ function chat_with_site_register_settings() {
 		'Pinecone Server URL',
 		'chat_with_site_pinecone_server_url_callback',
 		'chat_with_site_settings',
-		'api_keys_section'
+		'pinecone_section'
 	);
 	
-	add_settings_field(
-		'pinecone_namespace',
-		'Pinecone Namespace (Optional)',
-		'chat_with_site_pinecone_namespace_callback',
-		'chat_with_site_settings',
-		'api_keys_section'
-	);
+	// Namespace field disabled for now - will be handled in Content Library
+	// add_settings_field(
+	// 	'pinecone_namespace',
+	// 	'Pinecone Namespace (Optional)',
+	// 	'chat_with_site_pinecone_namespace_callback',
+	// 	'chat_with_site_settings',
+	// 	'pinecone_section'
+	// );
 	
 	// OpenAI Settings
 	add_settings_field(
@@ -249,7 +300,7 @@ function chat_with_site_register_settings() {
 		'OpenAI API Key',
 		'chat_with_site_openai_api_key_callback',
 		'chat_with_site_settings',
-		'api_keys_section'
+		'openai_section'
 	);
 	
 	add_settings_field(
@@ -257,7 +308,7 @@ function chat_with_site_register_settings() {
 		'OpenAI Organization ID (Optional)',
 		'chat_with_site_openai_org_id_callback',
 		'chat_with_site_settings',
-		'api_keys_section'
+		'openai_section'
 	);
 	
 	add_settings_field(
@@ -265,7 +316,7 @@ function chat_with_site_register_settings() {
 		'OpenAI Chat Model',
 		'chat_with_site_openai_model_callback',
 		'chat_with_site_settings',
-		'api_keys_section'
+		'openai_section'
 	);
 	
 	add_settings_field(
@@ -273,7 +324,7 @@ function chat_with_site_register_settings() {
 		'OpenAI Embedding Model',
 		'chat_with_site_openai_embedding_model_callback',
 		'chat_with_site_settings',
-		'api_keys_section'
+		'openai_section'
 	);
 }
 
