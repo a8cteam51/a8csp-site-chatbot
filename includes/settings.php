@@ -91,7 +91,7 @@ function chat_with_site_pinecone_section_callback() {
 	echo '<div style="background: #f9f9f9; border: 1px solid #ddd; padding: 15px; border-radius: 4px; margin-bottom: 20px;">';
 	echo '<strong>Pinecone Setup Steps:</strong><br>';
 	echo '1. Create an account at <a href="https://pinecone.io" target="_blank">pinecone.io</a><br>';
-	echo '2. Create an index with <strong>1536 dimensions</strong><br>';
+	echo '2. Create an index with <strong>dimensions matching your embedding model</strong> (e.g., 1536 for text-embedding-3-small, 3072 for text-embedding-3-large)<br>';
 	echo '3. Copy your API key and index URL from the dashboard';
 	echo '</div>';
 }
@@ -109,7 +109,7 @@ function chat_with_site_openai_section_callback() {
 function chat_with_site_pinecone_api_key_callback() {
 	$options = get_option('a8csp_chat_with_site_options');
 	$value = isset($options['pinecone_api_key']) ? $options['pinecone_api_key'] : '';
-	echo '<input type="password" id="pinecone_api_key" name="a8csp_chat_with_site_options[pinecone_api_key]" value="' . esc_attr($value) . '" size="70" />';
+	echo '<input type="password" id="pinecone_api_key" name="a8csp_chat_with_site_options[pinecone_api_key]" value="' . esc_attr($value) . '" size="70" autocomplete="off" autocapitalize="none" spellcheck="false" />';
 	echo '<p class="description">Your Pinecone API key (starts with "pcsk_")</p>';
 }
 
@@ -130,7 +130,7 @@ function chat_with_site_pinecone_namespace_callback() {
 function chat_with_site_openai_api_key_callback() {
 	$options = get_option('a8csp_chat_with_site_options');
 	$value = isset($options['openai_api_key']) ? $options['openai_api_key'] : '';
-	echo '<input type="password" id="openai_api_key" name="a8csp_chat_with_site_options[openai_api_key]" value="' . esc_attr($value) . '" size="70" />';
+	echo '<input type="password" id="openai_api_key" name="a8csp_chat_with_site_options[openai_api_key]" value="' . esc_attr($value) . '" size="70" autocomplete="off" autocapitalize="none" spellcheck="false" />';
 	echo '<p class="description">Your OpenAI API key (starts with "sk-")</p>';
 }
 
@@ -196,7 +196,7 @@ function chat_with_site_validate_options($input) {
 		}
 	}
 	
-	// Validate Pinecone Namespace
+	// Validate Pinecone Namespace (commented out but keeping validation ready)
 	if (isset($input['pinecone_namespace'])) {
 		$validated['pinecone_namespace'] = sanitize_text_field($input['pinecone_namespace']);
 	}
@@ -249,8 +249,11 @@ function chat_with_site_check_required_settings($options) {
 }
 
 function chat_with_site_register_settings() {
-	// Register setting group
-	register_setting('chat_with_site_settings', 'a8csp_chat_with_site_options', 'chat_with_site_validate_options');
+	// Register setting group with modern WordPress syntax
+	register_setting('chat_with_site_settings', 'a8csp_chat_with_site_options', array(
+		'sanitize_callback' => 'chat_with_site_validate_options',
+		'default' => array(),
+	));
 	
 	// Pinecone Settings Section
 	add_settings_section(
