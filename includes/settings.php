@@ -13,8 +13,8 @@ function a8csp_cws_admin_menu() {
 
 function a8csp_cws_settings_page() {
 	// Check for missing required settings
-	$options = get_option('a8csp_cws_options', array());
-	$warnings = a8csp_cws_check_required_settings($options);
+	$options = get_option('a8csp_chat_with_site_options', array());
+	$warnings = a8csp_cws_check_required_settings( $options );
 	
 	?>
 	<div class="wrap">
