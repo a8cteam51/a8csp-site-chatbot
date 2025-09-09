@@ -37,6 +37,7 @@ function a8csp_cws_activate() {
 }
 
 // Include additional files
+require_once plugin_dir_path(__FILE__) . 'includes/utils.php';
 require_once plugin_dir_path(__FILE__) . 'includes/api-helpers.php';
 require_once plugin_dir_path(__FILE__) . 'includes/settings.php';
 require_once plugin_dir_path(__FILE__) . 'includes/content-library.php';
