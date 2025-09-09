@@ -254,7 +254,7 @@ function a8csp_cws_validate_options($input) {
 	
 	// Validate OpenAI Model
 	if (isset($input['openai_model'])) {
-		$valid_models = array('gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo');
+		$valid_models = array('gpt-4o-mini', 'gpt-5-mini', 'gpt-5-nano');
 		if (in_array($input['openai_model'], $valid_models)) {
 			$validated['openai_model'] = $input['openai_model'];
 		}
@@ -424,7 +424,7 @@ function a8csp_cws_get_api_settings() {
 		'pinecone_namespace' => isset($options['pinecone_namespace']) ? $options['pinecone_namespace'] : '',
 		'openai_api_key' => isset($options['openai_api_key']) ? $options['openai_api_key'] : '',
 		'openai_org_id' => isset($options['openai_org_id']) ? $options['openai_org_id'] : '',
-		'openai_model' => isset($options['openai_model']) ? $options['openai_model'] : 'gpt-4o-mini',
+		'openai_model' => isset($options['openai_model']) ? $options['openai_model'] : 'gpt-5-mini',
 		'openai_embedding_model' => isset($options['openai_embedding_model']) ? $options['openai_embedding_model'] : 'text-embedding-3-small',
 		'custom_prompt' => isset($options['custom_prompt']) ? $options['custom_prompt'] : '',
 	);

@@ -364,12 +364,25 @@ function a8csp_cws_get_openai_completion($messages) {
 	}
 
 	$url = 'https://api.openai.com/v1/chat/completions';
+	
+	// Determine model generation for API parameter compatibility
+	$model = OPENAI_MODEL;
+	$is_gpt4_or_below = (strpos($model, 'gpt-3') === 0 || strpos($model, 'gpt-4') === 0);
+	
 	$data = [
-		'model' => OPENAI_MODEL,
+		'model' => $model,
 		'messages' => $validated_messages,
-		'temperature' => 0.5,
-		'max_tokens' => 500, // Limit to prevent resource exhaustion
 	];
+	
+	// GPT-4 and below support temperature and max_tokens
+	if ($is_gpt4_or_below) {
+		$data['temperature'] = 0.5;
+		$data['max_tokens'] = 500; // Limit to prevent resource exhaustion
+	} else {
+		// GPT-5+ models use max_completion_tokens and don't support temperature
+		$data['max_completion_tokens'] = 500; // Limit to prevent resource exhaustion
+	}
+	
 	$headers = [
 		'Content-Type' => 'application/json',
 		'Authorization' => 'Bearer ' . OPENAI_API_KEY,
@@ -396,7 +409,7 @@ function a8csp_cws_get_openai_completion($messages) {
 		}
 	}
 	
-	error_log('A8CSP: Invalid OpenAI completion response');
+	error_log('A8CSP: Invalid OpenAI completion response. ' . print_r($body, true));
 	return '';
 }
 
