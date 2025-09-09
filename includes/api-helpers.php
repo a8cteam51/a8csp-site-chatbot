@@ -409,7 +409,7 @@ function a8csp_cws_get_openai_completion($messages) {
 		}
 	}
 	
-	error_log('A8CSP: Invalid OpenAI completion response. ' . print_r($body, true));
+	error_log('A8CSP: Invalid OpenAI completion response. ' . A8CSP_CWS_Utils::sanitize_for_log($body));
 	return '';
 }
 
