@@ -131,7 +131,7 @@ function a8csp_cws_pinecone_section_callback() {
 	echo '<p class="a8csp-section-description">Configure your vector database settings. This stores the vectorized content for similarity search and semantic matching.</p>';
 	echo '<div class="a8csp-help-box a8csp-help-box-gray">';
 	echo '<strong>Vector Database Setup Steps:</strong><br>';
-	echo '1. Create an account at <a href="https://pinecone.io" target="_blank">pinecone.io</a><br>';
+	echo '1. Create an account at <a href="https://pinecone.io" target="_blank" rel="noopener noreferrer">pinecone.io</a><br>';
 	echo '2. Create an index with <strong>dimensions matching your embedding model</strong> (e.g., 1536 for text-embedding-3-small, 3072 for text-embedding-3-large)<br>';
 	echo '3. Copy your API key and index URL from the dashboard';
 	echo '</div>';
@@ -141,7 +141,7 @@ function a8csp_cws_openai_section_callback() {
 	echo '<p class="a8csp-section-description">Configure your AI service provider settings. This handles <strong>chat completions</strong> and <strong>text embeddings</strong> generation.</p>';
 	echo '<div class="a8csp-help-box a8csp-help-box-blue">';
 	echo '<strong>AI Service Setup Steps:</strong><br>';
-	echo '1. Create an account at <a href="https://openai.com" target="_blank">openai.com</a> (or your preferred AI provider)<br>';
+	echo '1. Create an account at <a href="https://openai.com" target="_blank" rel="noopener noreferrer">openai.com</a> (or your preferred AI provider)<br>';
 	echo '2. Generate an API key from your dashboard<br>';
 	echo '3. Select appropriate models for chat and embeddings<br>';
 	echo '4. Organization ID is optional (only needed for organizations)';
@@ -409,7 +409,7 @@ function a8csp_cws_custom_prompt_callback() {
 	$value   = isset($options['custom_prompt']) ? $options['custom_prompt'] : '';
 	$placeholder = "You are a helpful website assistant. You provide accurate and informative responses based on the content available on this website. You maintain a friendly, professional tone and help users find the information they're looking for. You will prioritize information from this website's content, and when applicable, provide relevant links to articles or pages on this website to give users additional depth and context...";
 	
-	echo '<textarea id="custom_prompt" name="a8csp_chat_with_site_options[custom_prompt]" rows="8" cols="70" placeholder="' . esc_attr($placeholder) . '" spellcheck="false">' . esc_textarea($value) . '</textarea>';
+	echo '<textarea id="custom_prompt" name="a8csp_chat_with_site_options[custom_prompt]" rows="8" cols="70" maxlength="2000" placeholder="' . esc_attr($placeholder) . '" spellcheck="false">' . esc_textarea($value) . '</textarea>';
 	echo '<div class="a8csp-help-box-info">';
 	echo '<span>Define how your Chatbot should behave, its personality, tone, and expertise. Leave blank to use the default generic assistant.</span><br>';
 	echo '<strong>Security:</strong> Safety instructions are automatically added to prevent prompt injection attacks.';
