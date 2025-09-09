@@ -4,17 +4,17 @@ if (!defined('ABSPATH')) {
 	exit;
 }
 
-function chat_with_site_admin_menu() {
+function a8csp_cws_admin_menu() {
 	// Main menu page is now Content Library (most used feature)
-	add_menu_page('51 Site Chatbot', '51 Chatbot', 'manage_options', 'chat-with-site-sync', 'chat_with_site_sync_page', 'dashicons-format-chat');
-	add_submenu_page('chat-with-site-sync', 'Content Library', 'Content Library', 'manage_options', 'chat-with-site-sync', 'chat_with_site_sync_page');
-	add_submenu_page('chat-with-site-sync', 'Settings', 'Settings', 'manage_options', 'chat-with-site-settings', 'chat_with_site_settings_page');
+	add_menu_page('51 Site Chatbot', '51 Chatbot', 'manage_options', 'chat-with-site-sync', 'a8csp_cws_sync_page', 'dashicons-format-chat');
+	add_submenu_page('chat-with-site-sync', 'Content Library', 'Content Library', 'manage_options', 'chat-with-site-sync', 'a8csp_cws_sync_page');
+	add_submenu_page('chat-with-site-sync', 'Settings', 'Settings', 'manage_options', 'chat-with-site-settings', 'a8csp_cws_settings_page');
 }
 
-function chat_with_site_settings_page() {
+function a8csp_cws_settings_page() {
 	// Check for missing required settings
 	$options = get_option('a8csp_chat_with_site_options', array());
-	$warnings = chat_with_site_check_required_settings($options);
+	$warnings = a8csp_cws_check_required_settings( $options );
 	
 	?>
 	<div class="wrap">
@@ -86,7 +86,7 @@ function chat_with_site_settings_page() {
 	<?php
 }
 
-function chat_with_site_pinecone_section_callback() {
+function a8csp_cws_pinecone_section_callback() {
 	echo '<p style="margin-top: 0;">Configure your Pinecone vector database settings. Pinecone stores the vectorized content for similarity search.</p>';
 	echo '<div style="background: #f9f9f9; border: 1px solid #ddd; padding: 15px; border-radius: 4px; margin-bottom: 20px;">';
 	echo '<strong>Pinecone Setup Steps:</strong><br>';
@@ -96,7 +96,7 @@ function chat_with_site_pinecone_section_callback() {
 	echo '</div>';
 }
 
-function chat_with_site_openai_section_callback() {
+function a8csp_cws_openai_section_callback() {
 	echo '<p style="margin-top: 0;">Configure your OpenAI API settings. OpenAI provides the embeddings and chat completion services.</p>';
 	echo '<div style="background: #f0f8ff; border: 1px solid #c3d9ff; padding: 15px; border-radius: 4px; margin-bottom: 20px;">';
 	echo '<strong>OpenAI Setup Steps:</strong><br>';
@@ -106,42 +106,42 @@ function chat_with_site_openai_section_callback() {
 	echo '</div>';
 }
 
-function chat_with_site_pinecone_api_key_callback() {
+function a8csp_cws_pinecone_api_key_callback() {
 	$options = get_option('a8csp_chat_with_site_options');
 	$value = isset($options['pinecone_api_key']) ? $options['pinecone_api_key'] : '';
 	echo '<input type="password" id="pinecone_api_key" name="a8csp_chat_with_site_options[pinecone_api_key]" value="' . esc_attr($value) . '" size="70" autocomplete="off" autocapitalize="none" spellcheck="false" />';
 	echo '<p class="description">Your Pinecone API key (starts with "pcsk_")</p>';
 }
 
-function chat_with_site_pinecone_server_url_callback() {
+function a8csp_cws_pinecone_server_url_callback() {
 	$options = get_option('a8csp_chat_with_site_options');
 	$value = isset($options['pinecone_server_url']) ? $options['pinecone_server_url'] : '';
 	echo '<input type="url" id="pinecone_server_url" name="a8csp_chat_with_site_options[pinecone_server_url]" value="' . esc_attr($value) . '" size="70" />';
 	echo '<p class="description">Your Pinecone index URL (e.g., https://your-index-abc123.svc.region.pinecone.io)</p>';
 }
 
-function chat_with_site_pinecone_namespace_callback() {
+function a8csp_cws_pinecone_namespace_callback() {
 	$options = get_option('a8csp_chat_with_site_options');
 	$value = isset($options['pinecone_namespace']) ? $options['pinecone_namespace'] : '';
 	echo '<input type="text" id="pinecone_namespace" name="a8csp_chat_with_site_options[pinecone_namespace]" value="' . esc_attr($value) . '" size="50" />';
 	echo '<p class="description">Optional namespace for organizing vectors</p>';
 }
 
-function chat_with_site_openai_api_key_callback() {
+function a8csp_cws_openai_api_key_callback() {
 	$options = get_option('a8csp_chat_with_site_options');
 	$value = isset($options['openai_api_key']) ? $options['openai_api_key'] : '';
 	echo '<input type="password" id="openai_api_key" name="a8csp_chat_with_site_options[openai_api_key]" value="' . esc_attr($value) . '" size="70" autocomplete="off" autocapitalize="none" spellcheck="false" />';
 	echo '<p class="description">Your OpenAI API key (starts with "sk-")</p>';
 }
 
-function chat_with_site_openai_org_id_callback() {
+function a8csp_cws_openai_org_id_callback() {
 	$options = get_option('a8csp_chat_with_site_options');
 	$value = isset($options['openai_org_id']) ? $options['openai_org_id'] : '';
 	echo '<input type="text" id="openai_org_id" name="a8csp_chat_with_site_options[openai_org_id]" value="' . esc_attr($value) . '" size="50" />';
 	echo '<p class="description">Optional organization ID (only needed for organizations)</p>';
 }
 
-function chat_with_site_openai_model_callback() {
+function a8csp_cws_openai_model_callback() {
 	$options = get_option('a8csp_chat_with_site_options');
 	$value = isset($options['openai_model']) ? $options['openai_model'] : 'gpt-4o-mini';
 	
@@ -160,7 +160,7 @@ function chat_with_site_openai_model_callback() {
 	echo '<p class="description">Model used for chat responses</p>';
 }
 
-function chat_with_site_openai_embedding_model_callback() {
+function a8csp_cws_openai_embedding_model_callback() {
 	$options = get_option('a8csp_chat_with_site_options');
 	$value = isset($options['openai_embedding_model']) ? $options['openai_embedding_model'] : 'text-embedding-3-small';
 	
@@ -178,7 +178,7 @@ function chat_with_site_openai_embedding_model_callback() {
 	echo '<p class="description">Model used for generating embeddings. Make sure your Pinecone index dimensions match!</p>';
 }
 
-function chat_with_site_validate_options($input) {
+function a8csp_cws_validate_options($input) {
 	$validated = array();
 	
 	// Validate Pinecone API Key
@@ -230,7 +230,7 @@ function chat_with_site_validate_options($input) {
 	return $validated;
 }
 
-function chat_with_site_check_required_settings($options) {
+function a8csp_cws_check_required_settings($options) {
 	$warnings = array();
 	
 	if (empty($options['pinecone_api_key'])) {
@@ -248,10 +248,10 @@ function chat_with_site_check_required_settings($options) {
 	return $warnings;
 }
 
-function chat_with_site_register_settings() {
+function a8csp_cws_register_settings() {
 	// Register setting group with modern WordPress syntax
 	register_setting('chat_with_site_settings', 'a8csp_chat_with_site_options', array(
-		'sanitize_callback' => 'chat_with_site_validate_options',
+		'sanitize_callback' => 'a8csp_cws_validate_options',
 		'default' => array(),
 	));
 	
@@ -259,7 +259,7 @@ function chat_with_site_register_settings() {
 	add_settings_section(
 		'pinecone_section',
 		'Pinecone Configuration',
-		'chat_with_site_pinecone_section_callback',
+		'a8csp_cws_pinecone_section_callback',
 		'chat_with_site_settings'
 	);
 	
@@ -267,7 +267,7 @@ function chat_with_site_register_settings() {
 	add_settings_section(
 		'openai_section',
 		'OpenAI Configuration',
-		'chat_with_site_openai_section_callback',
+		'a8csp_cws_openai_section_callback',
 		'chat_with_site_settings'
 	);
 	
@@ -275,7 +275,7 @@ function chat_with_site_register_settings() {
 	add_settings_field(
 		'pinecone_api_key',
 		'Pinecone API Key',
-		'chat_with_site_pinecone_api_key_callback',
+		'a8csp_cws_pinecone_api_key_callback',
 		'chat_with_site_settings',
 		'pinecone_section'
 	);
@@ -283,25 +283,24 @@ function chat_with_site_register_settings() {
 	add_settings_field(
 		'pinecone_server_url',
 		'Pinecone Server URL',
-		'chat_with_site_pinecone_server_url_callback',
+		'a8csp_cws_pinecone_server_url_callback',
 		'chat_with_site_settings',
 		'pinecone_section'
 	);
 	
-	// Namespace field disabled for now - will be handled in Content Library
-	// add_settings_field(
-	// 	'pinecone_namespace',
-	// 	'Pinecone Namespace (Optional)',
-	// 	'chat_with_site_pinecone_namespace_callback',
-	// 	'chat_with_site_settings',
-	// 	'pinecone_section'
-	// );
+	add_settings_field(
+		'pinecone_namespace',
+		'Pinecone Namespace (Optional)',
+		'a8csp_cws_pinecone_namespace_callback',
+		'chat_with_site_settings',
+		'pinecone_section'
+	);
 	
 	// OpenAI Settings
 	add_settings_field(
 		'openai_api_key',
 		'OpenAI API Key',
-		'chat_with_site_openai_api_key_callback',
+		'a8csp_cws_openai_api_key_callback',
 		'chat_with_site_settings',
 		'openai_section'
 	);
@@ -309,7 +308,7 @@ function chat_with_site_register_settings() {
 	add_settings_field(
 		'openai_org_id',
 		'OpenAI Organization ID (Optional)',
-		'chat_with_site_openai_org_id_callback',
+		'a8csp_cws_openai_org_id_callback',
 		'chat_with_site_settings',
 		'openai_section'
 	);
@@ -317,7 +316,7 @@ function chat_with_site_register_settings() {
 	add_settings_field(
 		'openai_model',
 		'OpenAI Chat Model',
-		'chat_with_site_openai_model_callback',
+		'a8csp_cws_openai_model_callback',
 		'chat_with_site_settings',
 		'openai_section'
 	);
@@ -325,13 +324,13 @@ function chat_with_site_register_settings() {
 	add_settings_field(
 		'openai_embedding_model',
 		'OpenAI Embedding Model',
-		'chat_with_site_openai_embedding_model_callback',
+		'a8csp_cws_openai_embedding_model_callback',
 		'chat_with_site_settings',
 		'openai_section'
 	);
 }
 
-function chat_with_site_get_api_settings() {
+function a8csp_cws_get_api_settings() {
 	$options = get_option('a8csp_chat_with_site_options', array());
 	return array(
 		'pinecone_api_key' => isset($options['pinecone_api_key']) ? $options['pinecone_api_key'] : '',

@@ -123,13 +123,13 @@ function a8csp_handle_chat_message() {
 	}
 
 	// Guard against missing function
-	if ( ! function_exists( 'get_bot_response' ) ) {
+	if ( ! function_exists( 'a8csp_cws_get_bot_response' ) ) {
 		wp_send_json_error( 'Chat service temporarily unavailable' );
 	}
 
 	// Get bot response with error handling
 	try {
-		$response = get_bot_response( $_SESSION['frontend_chat_history'] );
+		$response = a8csp_cws_get_bot_response( $_SESSION['frontend_chat_history'] );
 		
 		// Validate response
 		if ( empty( $response ) || ! is_string( $response ) ) {

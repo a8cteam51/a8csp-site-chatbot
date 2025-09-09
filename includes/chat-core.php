@@ -11,9 +11,9 @@ if (!defined('ABSPATH')) {
 
 
 
-function get_bot_response($history) {
+function a8csp_cws_get_bot_response($history) {
 	// Security: Check rate limiting first
-	if ( ! a8csp_check_bot_response_rate_limit() ) {
+	if ( ! a8csp_cws_check_bot_response_rate_limit() ) {
 		error_log('A8CSP: Rate limit exceeded for bot response');
 		return 'You\'re asking questions too quickly. Please wait a moment before trying again.';
 	}
@@ -63,14 +63,14 @@ function get_bot_response($history) {
 		return 'Please provide a question or message.';
 	}
 
-	$embedding = get_openai_embedding($query);
+	$embedding = a8csp_cws_get_openai_embedding($query);
 
 	if (empty($embedding)) {
 		error_log('A8CSP: Failed to generate embedding for query');
 		return 'Unable to process your question at this time.';
 	}
 	
-	$matches = query_pinecone($embedding);
+	$matches = a8csp_cws_query_pinecone($embedding);
 
 	if (empty($matches)) {
 		return 'I don\'t have specific information about that topic in my knowledge base. Could you try rephrasing your question?';
@@ -180,7 +180,7 @@ function get_bot_response($history) {
 		}
 	}
 	// Security: Build system message with length validation
-	$prompt = wpcomsp_get_prompt();
+	$prompt = a8csp_cws_get_prompt();
 	if ( empty( $prompt ) || strlen( $prompt ) > 2000 ) {
 		error_log('A8CSP: Invalid or too long system prompt');
 		return 'System configuration error.';
@@ -208,7 +208,7 @@ function get_bot_response($history) {
 		$messages = array_slice( $messages, -20 ); // Keep only last 20 messages
 	}
 
-	$response = get_openai_completion($messages);
+	$response = a8csp_cws_get_openai_completion($messages);
 
 	// Security: Validate response
 	if ( empty( $response ) || ! is_string( $response ) ) {
@@ -222,12 +222,12 @@ function get_bot_response($history) {
 	}
 
 	// Convert Markdown to HTML for better display
-	$response = a8csp_markdown_to_html( $response );
+	$response = a8csp_cws_markdown_to_html( $response );
 
 	return $response;
 }
 
-function wpcomsp_get_prompt() {
+function a8csp_cws_get_prompt() {
 	// Security: Define a safe, sanitized system prompt
 	$base_prompt = "You are the COOL HUNTING Travel Advisor. You will provide travel recommendations in a smart, intellectual, and clear yet friendly tone. You specialize in unique experiences, authentic culture, and well-designed places, with a focus on lesser-known options. Responses will be concise but can be elaborated upon request.";
 	
@@ -259,10 +259,10 @@ function wpcomsp_get_prompt() {
 /**
  * Security: Rate limiting function for bot responses
  */
-function a8csp_check_bot_response_rate_limit() {
+function a8csp_cws_check_bot_response_rate_limit() {
 	// Security: Basic rate limiting - 7 requests per minute per IP
 	$ip = $_SERVER['REMOTE_ADDR'] ?? '';
-	$rate_key = 'a8csp_bot_response_' . md5( $ip );
+	$rate_key = 'a8csp_cws_bot_response_' . md5( $ip );
 	$current_count = get_transient( $rate_key );
 	
 	if ( $current_count === false ) {

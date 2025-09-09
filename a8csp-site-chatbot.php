@@ -18,6 +18,7 @@ require_once plugin_dir_path(__FILE__) . 'vendor/autoload.php';
 $chat_options = get_option('a8csp_chat_with_site_options', array());
 
 // Initialize constants from options array
+// TODO: Encrypt these values in the database.
 define('PINECONE_API_KEY', $chat_options['pinecone_api_key'] ?? '');
 define('PINECONE_SERVER_URL', $chat_options['pinecone_server_url'] ?? '');
 define('OPENAI_API_KEY', $chat_options['openai_api_key'] ?? '');
@@ -29,9 +30,9 @@ define('PINECONE_NAMESPACE', $chat_options['pinecone_namespace'] ?? '');
 
 
 // Plugin activation hook
-register_activation_hook(__FILE__, 'chat_with_site_activate');
+register_activation_hook(__FILE__, 'a8csp_cws_activate');
 
-function chat_with_site_activate() {
+function a8csp_cws_activate() {
     // Nothing specific needed for activation currently
 }
 
@@ -46,7 +47,7 @@ require_once plugin_dir_path(__FILE__) . 'includes/block.php';
 // Define all admin page functions first
 
 
-add_action('admin_menu', 'chat_with_site_admin_menu');
+add_action('admin_menu', 'a8csp_cws_admin_menu');
 
-add_action('admin_init', 'chat_with_site_register_settings');
+add_action('admin_init', 'a8csp_cws_register_settings');
 
