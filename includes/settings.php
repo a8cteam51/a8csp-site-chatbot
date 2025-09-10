@@ -12,6 +12,14 @@ function a8csp_cws_admin_menu() {
 }
 
 function a8csp_cws_settings_page() {
+	// Enqueue admin CSS for settings page
+	wp_enqueue_style(
+		'a8csp-admin-style',
+		plugins_url('assets/admin.css', dirname(__FILE__)),
+		array(),
+		filemtime(plugin_dir_path(dirname(__FILE__)) . 'assets/admin.css')
+	);
+
 	// Check for missing required settings
 	$options = get_option('a8csp_chat_with_site_options', array());
 	$warnings = a8csp_cws_check_required_settings( $options );
@@ -32,77 +40,111 @@ function a8csp_cws_settings_page() {
 		<?php endif; ?>
 		
 		<div class="metabox-holder a8csp-settings">
-			<div class="postbox-container" style="width: 75%;">
-				<div class="meta-box-sortables">
-					<div class="postbox">
-						<div class="postbox-header">
-							<h2 class="hndle">Plugin Configuration</h2>
+			<div class="postbox-container">
+				<form method="post" action="options.php">
+					<?php
+					// Security: WordPress Settings API automatically handles nonces via settings_fields()
+					settings_fields('chat_with_site_settings');
+					?>
+					
+					<div class="meta-box-sortables">
+						<!-- Chatbot Configuration Box -->
+						<div class="postbox">
+							<div class="postbox-header">
+								<h2 class="hndle">Chatbot Configuration</h2>
+							</div>
+							<div class="inside">
+								<?php a8csp_cws_do_settings_section('chat_with_site_settings', 'ai_chat_section'); ?>
+							</div>
 						</div>
-						<div class="inside">
-							<form method="post" action="options.php">
-								<?php
-								// Security: WordPress Settings API automatically handles nonces via settings_fields()
-								settings_fields('chat_with_site_settings');
-								do_settings_sections('chat_with_site_settings');
-								submit_button('Save Settings', 'primary', 'submit', true, array('style' => 'margin-top: 20px;'));
-								?>
-							</form>
+
+						<!-- AI Service Configuration Box -->
+						<div class="postbox">
+							<div class="postbox-header">
+								<h2 class="hndle">AI Service</h2>
+							</div>
+							<div class="inside">
+								<?php a8csp_cws_do_settings_section('chat_with_site_settings', 'openai_section'); ?>
+							</div>
+						</div>
+
+						<!-- Embeddings Configuration Box -->
+						<div class="postbox">
+							<div class="postbox-header">
+								<h2 class="hndle">Embeddings and Vector Database</h2>
+							</div>
+							<div class="inside">
+								<?php a8csp_cws_do_settings_section('chat_with_site_settings', 'pinecone_section'); ?>
+							</div>
 						</div>
 					</div>
-				</div>
-			</div>
-			
-			<div class="postbox-container" style="width: 25%;">
-				<div class="meta-box-sortables">
-					<div class="postbox">
-						<div class="postbox-header">
-							<h2 class="hndle">Quick Help</h2>
-						</div>
-						<div class="inside">
-							<h4>API Keys Required</h4>
-							<p><small>Both Pinecone and OpenAI API keys are required for the chatbot to function.</small></p>
-							<p><small><strong>Pinecone</strong> stores embeddings (vector representations) of your content, enabling fast semantic search. <br><strong>OpenAI</strong> generates these embeddings, Pinecone's vector database is essential for efficiently finding relevant content when users ask questions.</small></p>
-							<p><small>API keys are stored securely on your WordPress database, and never logged or sent to any other servers.</small></p>
-
-							
-							<h4>Model Recommendations</h4>
-							<ul style="font-size: 12px; margin-left: 15px;">
-								<li><strong>Chat:</strong> gpt-4o-mini (cost-effective)</li>
-								<li><strong>Embeddings:</strong> text-embedding-3-small</li>
-							</ul>
-
-							<h4>Cost Optimization</h4>
-							<ul style="font-size: 12px; margin-left: 15px;">
-								<li>Sync only relevant content</li>
-								<li>Use shorter responses (fewer tokens)</li>
-								<li>Monitor API usage regularly</li>
-							</ul>
-						</div>
-					</div>
-				</div>
+					
+					<?php submit_button('Save Settings', 'primary', 'submit', true, array('style' => 'margin-top: 20px;')); ?>
+				</form>
 			</div>
 		</div>
 	</div>
 	<?php
 }
 
+/**
+ * Helper function to render a specific settings section
+ */
+function a8csp_cws_do_settings_section($page, $section_id) {
+	global $wp_settings_sections, $wp_settings_fields;
+
+	if ( !isset($wp_settings_sections[$page][$section_id]) ) {
+		return;
+	}
+
+	$section = $wp_settings_sections[$page][$section_id];
+	
+	// Call the section callback to display description
+	if ( $section['callback'] ) {
+		call_user_func($section['callback'], $section);
+	}
+
+	// Display all fields for this section
+	if ( !isset($wp_settings_fields[$page][$section_id]) ) {
+		return;
+	}
+
+	echo '<table class="form-table" role="presentation">';
+	foreach ( (array) $wp_settings_fields[$page][$section_id] as $field ) {
+		echo '<tr>';
+		
+		if ( !empty($field['args']['label_for']) ) {
+			echo '<th scope="row"><label for="' . esc_attr($field['args']['label_for']) . '">' . $field['title'] . '</label></th>';
+		} else {
+			echo '<th scope="row">' . $field['title'] . '</th>';
+		}
+		
+		echo '<td>';
+		call_user_func($field['callback'], $field['args']);
+		echo '</td>';
+		echo '</tr>';
+	}
+	echo '</table>';
+}
+
 function a8csp_cws_pinecone_section_callback() {
-	echo '<p style="margin-top: 0;">Configure your Pinecone vector database settings. Pinecone stores the vectorized content for similarity search.</p>';
-	echo '<div style="background: #f9f9f9; border: 1px solid #ddd; padding: 15px; border-radius: 4px; margin-bottom: 20px;">';
-	echo '<strong>Pinecone Setup Steps:</strong><br>';
-	echo '1. Create an account at <a href="https://pinecone.io" target="_blank">pinecone.io</a><br>';
+	echo '<p class="a8csp-section-description">Configure your vector database settings. This stores the vectorized content for similarity search and semantic matching.</p>';
+	echo '<div class="a8csp-help-box a8csp-help-box-gray">';
+	echo '<strong>Vector Database Setup Steps:</strong><br>';
+	echo '1. Create an account at <a href="https://pinecone.io" target="_blank" rel="noopener noreferrer">pinecone.io</a><br>';
 	echo '2. Create an index with <strong>dimensions matching your embedding model</strong> (e.g., 1536 for text-embedding-3-small, 3072 for text-embedding-3-large)<br>';
 	echo '3. Copy your API key and index URL from the dashboard';
 	echo '</div>';
 }
 
 function a8csp_cws_openai_section_callback() {
-	echo '<p style="margin-top: 0;">Configure your OpenAI API settings. OpenAI provides the embeddings and chat completion services.</p>';
-	echo '<div style="background: #f0f8ff; border: 1px solid #c3d9ff; padding: 15px; border-radius: 4px; margin-bottom: 20px;">';
-	echo '<strong>OpenAI Setup Steps:</strong><br>';
-	echo '1. Create an account at <a href="https://openai.com" target="_blank">openai.com</a><br>';
+	echo '<p class="a8csp-section-description">Configure your AI service provider settings. This handles <strong>chat completions</strong> and <strong>text embeddings</strong> generation.</p>';
+	echo '<div class="a8csp-help-box a8csp-help-box-blue">';
+	echo '<strong>AI Service Setup Steps:</strong><br>';
+	echo '1. Create an account at <a href="https://openai.com" target="_blank" rel="noopener noreferrer">openai.com</a> (or your preferred AI provider)<br>';
 	echo '2. Generate an API key from your dashboard<br>';
-	echo '3. Organization ID is optional (only needed for organizations)';
+	echo '3. Select appropriate models for chat and embeddings<br>';
+	echo '4. Organization ID is optional (only needed for organizations)';
 	echo '</div>';
 }
 
@@ -147,9 +189,8 @@ function a8csp_cws_openai_model_callback() {
 	
 	$models = array(
 		'gpt-4o-mini' => 'GPT-4o Mini (Recommended)',
-		'gpt-4o' => 'GPT-4o',
-		'gpt-4-turbo' => 'GPT-4 Turbo',
-		'gpt-3.5-turbo' => 'GPT-3.5 Turbo',
+		'gpt-5-mini' => 'GPT-5 Mini',
+		'gpt-5-nano' => 'GPT-5 Nano',
 	);
 	
 	echo '<select id="openai_model" name="a8csp_chat_with_site_options[openai_model]">';
@@ -213,7 +254,7 @@ function a8csp_cws_validate_options($input) {
 	
 	// Validate OpenAI Model
 	if (isset($input['openai_model'])) {
-		$valid_models = array('gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo');
+		$valid_models = array('gpt-4o-mini', 'gpt-5-mini', 'gpt-5-nano');
 		if (in_array($input['openai_model'], $valid_models)) {
 			$validated['openai_model'] = $input['openai_model'];
 		}
@@ -225,6 +266,17 @@ function a8csp_cws_validate_options($input) {
 		if (in_array($input['openai_embedding_model'], $valid_models)) {
 			$validated['openai_embedding_model'] = $input['openai_embedding_model'];
 		}
+	}
+	
+	// Validate Custom Prompt
+	if (isset($input['custom_prompt'])) {
+		$custom_prompt = sanitize_textarea_field($input['custom_prompt']);
+		// Security: Limit prompt length to prevent resource exhaustion
+		if (strlen($custom_prompt) > 2000) {
+			$custom_prompt = substr($custom_prompt, 0, 2000);
+			add_settings_error('a8csp_chat_with_site_options', 'prompt_too_long', 'Custom prompt was truncated to 2000 characters.');
+		}
+		$validated['custom_prompt'] = $custom_prompt;
 	}
 	
 	return $validated;
@@ -255,20 +307,38 @@ function a8csp_cws_register_settings() {
 		'default' => array(),
 	));
 	
-	// Pinecone Settings Section
+	// AI Chat Settings Section - First section for main functionality
 	add_settings_section(
-		'pinecone_section',
-		'Pinecone Configuration',
-		'a8csp_cws_pinecone_section_callback',
+		'ai_chat_section',
+		'Chatbot Configuration',
+		'a8csp_cws_ai_chat_section_callback',
 		'chat_with_site_settings'
 	);
 	
 	// OpenAI Settings Section  
 	add_settings_section(
 		'openai_section',
-		'OpenAI Configuration',
+		'AI Service',
 		'a8csp_cws_openai_section_callback',
 		'chat_with_site_settings'
+	);
+
+	// Pinecone Settings Section
+	add_settings_section(
+		'pinecone_section',
+		'Embeddings and Vector Database',
+		'a8csp_cws_pinecone_section_callback',
+		'chat_with_site_settings'
+	);
+	
+	
+	// AI Chat Settings - First field for main functionality
+	add_settings_field(
+		'custom_prompt',
+		'Custom AI Prompt (Optional)',
+		'a8csp_cws_custom_prompt_callback',
+		'chat_with_site_settings',
+		'ai_chat_section'
 	);
 	
 	// Pinecone Settings
@@ -330,6 +400,22 @@ function a8csp_cws_register_settings() {
 	);
 }
 
+function a8csp_cws_ai_chat_section_callback() {
+	echo '<p class="a8csp-section-description">Customize how your Chatbot behaves and responds to users.</p>';
+}
+
+function a8csp_cws_custom_prompt_callback() {
+	$options = get_option('a8csp_chat_with_site_options');
+	$value   = isset($options['custom_prompt']) ? $options['custom_prompt'] : '';
+	$placeholder = "You are a helpful website assistant. You provide accurate and informative responses based on the content available on this website. You maintain a friendly, professional tone and help users find the information they're looking for. You will prioritize information from this website's content, and when applicable, provide relevant links to articles or pages on this website to give users additional depth and context...";
+	
+	echo '<textarea id="custom_prompt" name="a8csp_chat_with_site_options[custom_prompt]" rows="8" cols="70" maxlength="2000" placeholder="' . esc_attr($placeholder) . '" spellcheck="false">' . esc_textarea($value) . '</textarea>';
+	echo '<div class="a8csp-help-box-info">';
+	echo '<span>Define how your Chatbot should behave, its personality, tone, and expertise. Leave blank to use the default generic assistant.</span><br>';
+	echo '<strong>Security:</strong> Safety instructions are automatically added to prevent prompt injection attacks.';
+	echo '</div>';
+}
+
 function a8csp_cws_get_api_settings() {
 	$options = get_option('a8csp_chat_with_site_options', array());
 	return array(
@@ -338,7 +424,8 @@ function a8csp_cws_get_api_settings() {
 		'pinecone_namespace' => isset($options['pinecone_namespace']) ? $options['pinecone_namespace'] : '',
 		'openai_api_key' => isset($options['openai_api_key']) ? $options['openai_api_key'] : '',
 		'openai_org_id' => isset($options['openai_org_id']) ? $options['openai_org_id'] : '',
-		'openai_model' => isset($options['openai_model']) ? $options['openai_model'] : 'gpt-4o-mini',
+		'openai_model' => isset($options['openai_model']) ? $options['openai_model'] : 'gpt-5-mini',
 		'openai_embedding_model' => isset($options['openai_embedding_model']) ? $options['openai_embedding_model'] : 'text-embedding-3-small',
+		'custom_prompt' => isset($options['custom_prompt']) ? $options['custom_prompt'] : '',
 	);
 }

@@ -8,4 +8,37 @@
 	cursor: default;
 }
 
-/* Additional admin styles can be added here */
+/* Settings Section Help Boxes */
+.a8csp-help-box {
+	padding: 15px;
+	border-radius: 4px;
+	margin-bottom: 20px;
+}
+
+.a8csp-help-box-yellow {
+	background: #fff3cd;
+	border: 1px solid #ffeaa7;
+}
+
+.a8csp-help-box-gray {
+	background: #f9f9f9;
+	border: 1px solid #ddd;
+}
+
+.a8csp-help-box-blue {
+	background: #f0f8ff;
+	border: 1px solid #c3d9ff;
+}
+
+.a8csp-help-box-info {
+	background: #f0f8ff;
+	padding: 10px;
+	margin-top: 10px;
+	border-radius: 4px;
+	font-size: 12px;
+}
+
+/* Settings Section Descriptions */
+.a8csp-section-description {
+	margin-top: 0;
+}
