@@ -69,6 +69,61 @@ function a8csp_cws_get_post_content_as_text($post) {
 	return $full_content;
 }
 
+/**
+ * Helper function to render WordPress native pagination
+ */
+function a8csp_cws_render_pagination($posts_query, $post_type, $category, $tag, $paged, $position = 'bottom') {
+	if ($posts_query->max_num_pages <= 1) {
+		return;
+	}
+	
+	// Build query args to preserve filters
+	$pagination_args = array(
+		'page' => 'chat-with-site-sync',
+		'content_type' => $post_type,
+	);
+	
+	// Add category and tag filters only for post type
+	if ($post_type === 'post') {
+		if ($category > 0) {
+			$pagination_args['category'] = $category;
+		}
+		if ($tag > 0) {
+			$pagination_args['tag'] = $tag;
+		}
+	}
+	
+	// Build base URL with preserved parameters
+	$base_url = add_query_arg($pagination_args, admin_url('admin.php'));
+	$base_url = add_query_arg('paged', '%#%', $base_url);
+	
+	// WordPress native tablenav structure
+	echo '<div class="tablenav ' . esc_attr($position) . '">';
+	echo '<div class="alignleft actions bulkactions">';
+	// Bulk actions would go here if needed
+	echo '</div>';
+	echo '<div class="tablenav-pages">';
+	echo '<span class="displaying-num">' . 
+		 sprintf(_n('%s item', '%s items', $posts_query->found_posts), number_format_i18n($posts_query->found_posts)) . 
+		 '</span>';
+	
+	echo paginate_links(array(
+		'base' => $base_url,
+		'format' => '',
+		'current' => max(1, $paged),
+		'total' => $posts_query->max_num_pages,
+		'type' => 'plain',
+		'prev_text' => '&laquo;',
+		'next_text' => '&raquo;',
+		'before_page_number' => '<span class="screen-reader-text">Page </span>',
+		'mid_size' => 2,
+		'end_size' => 1,
+	));
+	echo '</div>';
+	echo '<br class="clear" />';
+	echo '</div>';
+}
+
 function a8csp_cws_bulk_sync_posts($post_ids) {
 	// Security: Limit batch size to prevent resource exhaustion
 	// TODO: Process as an asynchronous queue.
@@ -283,7 +338,7 @@ function a8csp_cws_sync_page() {
 	// Security: Build query args with validated inputs
 	$args = array(
 		'post_type' => $post_type,
-		'posts_per_page' => 20, // Limit to prevent resource exhaustion
+		'posts_per_page' => 5, // Limit to prevent resource exhaustion
 		'post_status' => 'publish', // Only public posts
 		'paged' => $paged,
 		'no_found_rows' => false, // Need for pagination
@@ -311,32 +366,34 @@ function a8csp_cws_sync_page() {
 	<div class="wrap">
 		<h1>Content Library</h1>
 
-		<form method="get" action="<?php echo admin_url('admin.php'); ?>">
-			<input type="hidden" name="page" value="chat-with-site-sync">
-			<label for="content_type">Post Type:</label>
-			<select name="content_type" id="content_type">
-				<?php foreach ($post_types as $pt) : ?>
-					<option value="<?php echo esc_attr($pt); ?>" <?php selected($post_type, $pt); ?>><?php echo esc_html($pt); ?></option>
-				<?php endforeach; ?>
-			</select>
-			<?php if ($post_type === 'post') : ?>
-				<label for="category">Category:</label>
-				<select name="category" id="category">
-					<option value="0">All Categories</option>
-					<?php foreach ($categories as $cat) : ?>
-						<option value="<?php echo esc_attr($cat->term_id); ?>" <?php selected($category, $cat->term_id); ?>><?php echo esc_html($cat->name); ?></option>
+		<div class="content-library-filters">
+			<form method="get" action="<?php echo admin_url('admin.php'); ?>">
+				<input type="hidden" name="page" value="chat-with-site-sync">
+				<label for="content_type">Post Type:</label>
+				<select name="content_type" id="content_type">
+					<?php foreach ($post_types as $pt) : ?>
+						<option value="<?php echo esc_attr($pt); ?>" <?php selected($post_type, $pt); ?>><?php echo esc_html($pt); ?></option>
 					<?php endforeach; ?>
 				</select>
-				<label for="tag">Tag:</label>
-				<select name="tag" id="tag">
-					<option value="0">All Tags</option>
-					<?php foreach ($tags as $t) : ?>
-						<option value="<?php echo esc_attr($t->term_id); ?>" <?php selected($tag, $t->term_id); ?>><?php echo esc_html($t->name); ?></option>
-					<?php endforeach; ?>
-				</select>
-			<?php endif; ?>
-			<button type="submit">Filter</button>
-		</form>
+				<?php if ($post_type === 'post') : ?>
+					<label for="category">Category:</label>
+					<select name="category" id="category">
+						<option value="0">All Categories</option>
+						<?php foreach ($categories as $cat) : ?>
+							<option value="<?php echo esc_attr($cat->term_id); ?>" <?php selected($category, $cat->term_id); ?>><?php echo esc_html($cat->name); ?></option>
+						<?php endforeach; ?>
+					</select>
+					<label for="tag">Tag:</label>
+					<select name="tag" id="tag">
+						<option value="0">All Tags</option>
+						<?php foreach ($tags as $t) : ?>
+							<option value="<?php echo esc_attr($t->term_id); ?>" <?php selected($tag, $t->term_id); ?>><?php echo esc_html($t->name); ?></option>
+						<?php endforeach; ?>
+					</select>
+				<?php endif; ?>
+				<button type="submit" class="button">Filter</button>
+			</form>
+		</div>
 		<form method="post">
 			<?php 
 			// Security: Add nonce field for CSRF protection
@@ -345,7 +402,12 @@ function a8csp_cws_sync_page() {
 			<?php if (empty($posts)) : ?>
 				<p>No posts found for the selected filters.</p>
 			<?php else : ?>
-				<table class="wp-list-table widefat fixed striped">
+				<?php
+				// Top tablenav (WordPress standard)
+				a8csp_cws_render_pagination($posts_query, $post_type, $category, $tag, $paged, 'top');
+				?>
+				<div class="content-library-table-wrapper">
+					<table class="wp-list-table widefat fixed striped">
 					<thead>
 						<tr>
 							<th><input type="checkbox" id="select-all" onclick="document.querySelectorAll('input[name=\'post_ids[]\']').forEach(cb => cb.checked = this.checked);"></th>
@@ -389,18 +451,14 @@ function a8csp_cws_sync_page() {
 					</tbody>
 				</table>
 				<?php
-				// Pagination
-				$big = 999999999; // need an unlikely integer
-				echo paginate_links(array(
-					'base' => str_replace($big, '%#%', get_pagenum_link($big)),
-					'format' => '?paged=%#%',
-					'current' => max(1, $paged),
-					'total' => $posts_query->max_num_pages,
-					'type' => 'plain',
-				));
+				// Bottom tablenav (WordPress standard)
+				a8csp_cws_render_pagination($posts_query, $post_type, $category, $tag, $paged, 'bottom');
 				?>
+				</div>
 			<?php endif; ?>
-			<button type="submit" name="sync_posts" class="button button-primary">Sync Selected</button>
+			<div class="content-library-actions">
+				<button type="submit" name="sync_posts" class="button button-primary">Sync Selected</button>
+			</div>
 		</form>
 	</div>
 <?php

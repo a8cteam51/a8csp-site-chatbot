@@ -42,3 +42,35 @@
 .a8csp-section-description {
 	margin-top: 0;
 }
+
+/* Content Library Pagination - Using WordPress Native Styles */
+/* Custom pagination styles removed - using WordPress native list-tables.css */
+
+/* Content Library Table Improvements */
+.content-library-table-wrapper {
+	margin-bottom: 20px;
+}
+
+.content-library-filters {
+	margin-bottom: 20px;
+	padding: 15px;
+	background: #f9f9f9;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+}
+
+.content-library-filters label {
+	display: inline-block;
+	margin-right: 10px;
+	font-weight: 600;
+}
+
+.content-library-filters select {
+	margin-right: 15px;
+}
+
+.content-library-actions {
+	margin-top: 15px;
+	padding-top: 15px;
+	border-top: 1px solid #ddd;
+}
