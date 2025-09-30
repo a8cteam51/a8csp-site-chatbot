@@ -338,7 +338,7 @@ function a8csp_cws_sync_page() {
 	// Security: Build query args with validated inputs
 	$args = array(
 		'post_type' => $post_type,
-		'posts_per_page' => 5, // Limit to prevent resource exhaustion
+		'posts_per_page' => 20, // Limit to prevent resource exhaustion
 		'post_status' => 'publish', // Only public posts
 		'paged' => $paged,
 		'no_found_rows' => false, // Need for pagination
