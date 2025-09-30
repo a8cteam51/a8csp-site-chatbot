@@ -113,8 +113,8 @@ function a8csp_cws_render_pagination($posts_query, $post_type, $category, $tag, 
 		'current' => max(1, $paged),
 		'total' => $posts_query->max_num_pages,
 		'type' => 'plain',
-		'prev_text' => '&laquo;',
-		'next_text' => '&raquo;',
+		'prev_text' => '<span class="button">&laquo;</span>',
+		'next_text' => '<span class="button">&raquo;</span>',
 		'before_page_number' => '<span class="screen-reader-text">Page </span>',
 		'mid_size' => 2,
 		'end_size' => 1,
@@ -338,7 +338,7 @@ function a8csp_cws_sync_page() {
 	// Security: Build query args with validated inputs
 	$args = array(
 		'post_type' => $post_type,
-		'posts_per_page' => 20, // Limit to prevent resource exhaustion
+		'posts_per_page' => 20,
 		'post_status' => 'publish', // Only public posts
 		'paged' => $paged,
 		'no_found_rows' => false, // Need for pagination
