@@ -39,17 +39,8 @@ document.addEventListener( 'DOMContentLoaded', () => {
 		return false;
 	}
 
-	// Handle Enter key to submit (but not Shift+Enter)
-	input.addEventListener( 'keydown', ( e ) => {
-		if ( e.key === 'Enter' && ! e.shiftKey ) {
-			e.preventDefault();
-			form.dispatchEvent( new Event( 'submit' ) );
-		}
-	} );
-
-	// Handle form submission
-	form.addEventListener( 'submit', async ( e ) => {
-		e.preventDefault();
+	// Shared function to handle message submission
+	async function submitMessage() {
 		const message = input.value.trim();
 		if ( ! message ) return;
 
@@ -193,5 +184,19 @@ document.addEventListener( 'DOMContentLoaded', () => {
 		}
 
 		history.scrollTop = history.scrollHeight;
+	}
+
+	// Handle Enter key to submit (but not Shift+Enter)
+	input.addEventListener( 'keydown', ( e ) => {
+		if ( e.key === 'Enter' && ! e.shiftKey ) {
+			e.preventDefault();
+			submitMessage();
+		}
+	} );
+
+	// Handle form submission
+	form.addEventListener( 'submit', ( e ) => {
+		e.preventDefault();
+		submitMessage();
 	} );
 } );
