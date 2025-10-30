@@ -5,6 +5,12 @@
 	"category": "widgets",
 	"icon": "format-chat",
 	"description": "A chatbot interface for interacting with site content.",
+	"attributes": {
+		"primaryColor": {
+			"type": "string",
+			"default": "#007cba"
+		}
+	},
 	"supports": {
 		"html": false
 	},

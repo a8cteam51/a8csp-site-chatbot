@@ -14,7 +14,7 @@ function a8csp_register_blocks() {
 	wp_register_script(
 		'a8csp-site-chatbot-block-editor',
 		plugins_url( 'blocks/site-chatbot/edit.js', $main_file ),
-		array( 'wp-blocks', 'wp-element', 'wp-block-editor', 'wp-i18n' ),
+		array( 'wp-blocks', 'wp-element', 'wp-block-editor', 'wp-i18n', 'wp-components' ),
 		filemtime( plugin_dir_path( $main_file ) . 'blocks/site-chatbot/edit.js' )
 	);
 
@@ -38,6 +38,12 @@ function a8csp_register_blocks() {
 		'view_script' => 'a8csp-site-chatbot-frontend',
 		'style' => 'a8csp-site-chatbot-style',
 		'render_callback' => 'a8csp_render_site_chatbot_block',
+		'attributes' => array(
+			'primaryColor' => array(
+				'type' => 'string',
+				'default' => '#007cba',
+			),
+		),
 		'title' => __( 'A8CSP Site Chatbot', 'a8csp-site-chatbot' ),
 		'description' => __( 'A chatbot interface for interacting with site content.', 'a8csp-site-chatbot' ),
 		'category' => 'widgets',
@@ -178,6 +184,14 @@ function a8csp_render_site_chatbot_block( $attributes ) {
 	wp_enqueue_script( 'a8csp-site-chatbot-frontend' );
 	wp_enqueue_style( 'a8csp-site-chatbot-style' );
 
+	// Ensure attributes is an array and get the primary color
+	$attributes = is_array( $attributes ) ? $attributes : array();
+	$primary_color = isset( $attributes['primaryColor'] ) && ! empty( $attributes['primaryColor'] ) ? $attributes['primaryColor'] : '#007cba';
+	
+	// Generate hover and focus colors
+	$primary_color_hover = a8csp_cws_darken_color( $primary_color, 20 );
+	$primary_color_focus = a8csp_cws_hex_to_rgba( $primary_color, 0.1 );
+
 	// Security: Localize script with secure AJAX configuration
 	wp_localize_script( 'a8csp-site-chatbot-frontend', 'a8csp_ajax', array(
 		'ajax_url' => esc_url( admin_url( 'admin-ajax.php' ) ),
@@ -212,7 +226,7 @@ function a8csp_render_site_chatbot_block( $attributes ) {
 
 	ob_start();
 	?>
-	<div class="a8csp-chatbot">
+	<div class="a8csp-chatbot" style="--a8csp-chatbot-primary-color: <?php echo esc_attr( $primary_color ); ?>; --a8csp-chatbot-primary-color-hover: <?php echo esc_attr( $primary_color_hover ); ?>; --a8csp-chatbot-primary-color-focus: <?php echo esc_attr( $primary_color_focus ); ?>">
 		<div id="a8csp-chat-history">
 			<?php foreach ( $history as $msg ) : ?>
 				<div class="a8csp-chat-message <?php echo esc_attr( $msg['role'] === 'user' ? 'user-message' : 'bot-message' ); ?>">
@@ -236,4 +250,50 @@ function a8csp_render_site_chatbot_block( $attributes ) {
 	</div>
 	<?php
 	return ob_get_clean();
+}
+
+/**
+ * Helper function to darken a hex color by a percentage
+ */
+function a8csp_cws_darken_color( $hex, $percent ) {
+	// Remove # if present and validate
+	$hex = ltrim( $hex, '#' );
+	
+	// Validate hex color format
+	if ( ! preg_match( '/^[a-fA-F0-9]{6}$/', $hex ) ) {
+		return '#005a87'; // Fallback color
+	}
+	
+	// Convert to RGB
+	$r = hexdec( substr( $hex, 0, 2 ) );
+	$g = hexdec( substr( $hex, 2, 2 ) );
+	$b = hexdec( substr( $hex, 4, 2 ) );
+	
+	// Darken by percentage
+	$r = max( 0, $r - ( $r * $percent / 100 ) );
+	$g = max( 0, $g - ( $g * $percent / 100 ) );
+	$b = max( 0, $b - ( $b * $percent / 100 ) );
+	
+	// Convert back to hex
+	return sprintf( '#%02x%02x%02x', $r, $g, $b );
+}
+
+/**
+ * Helper function to convert hex color to rgba with opacity
+ */
+function a8csp_cws_hex_to_rgba( $hex, $opacity ) {
+	// Remove # if present and validate
+	$hex = ltrim( $hex, '#' );
+	
+	// Validate hex color format
+	if ( ! preg_match( '/^[a-fA-F0-9]{6}$/', $hex ) ) {
+		return 'rgba(0, 124, 186, 0.1)'; // Fallback color
+	}
+	
+	// Convert to RGB
+	$r = hexdec( substr( $hex, 0, 2 ) );
+	$g = hexdec( substr( $hex, 2, 2 ) );
+	$b = hexdec( substr( $hex, 4, 2 ) );
+	
+	return sprintf( 'rgba(%d, %d, %d, %s)', $r, $g, $b, $opacity );
 }
