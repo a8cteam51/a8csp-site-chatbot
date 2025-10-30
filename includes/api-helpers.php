@@ -376,7 +376,7 @@ function a8csp_cws_get_openai_completion($messages) {
 	
 	// GPT-4 and below support temperature and max_tokens
 	if ($is_gpt4_or_below) {
-		$data['temperature'] = 0.5;
+		$data['temperature'] = 0.3;
 		$data['max_tokens'] = 500; // Limit to prevent resource exhaustion
 	} else {
 		// GPT-5+ models use max_completion_tokens and don't support temperature

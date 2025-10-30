@@ -327,7 +327,7 @@ function a8csp_cws_register_settings() {
 	// AI Chat Settings - First field for main functionality
 	add_settings_field(
 		'custom_prompt',
-		'Custom AI Prompt (Optional)',
+		'Customize Chatbot Prompt (Optional)',
 		'a8csp_cws_custom_prompt_callback',
 		'chat_with_site_settings',
 		'ai_chat_section'
@@ -399,13 +399,9 @@ function a8csp_cws_ai_chat_section_callback() {
 function a8csp_cws_custom_prompt_callback() {
 	$options = get_option('a8csp_chat_with_site_options');
 	$value   = isset($options['custom_prompt']) ? $options['custom_prompt'] : '';
-	$placeholder = "You are a helpful website assistant. You provide accurate and informative responses based on the content available on this website. You maintain a friendly, professional tone and help users find the information they're looking for. You will prioritize information from this website's content, and when applicable, provide relevant links to articles or pages on this website to give users additional depth and context...";
+	$placeholder = "Personalize your chatbot's behavior, personality, tone, and expertise: (e.g. 'Your responses should be based solely on the provided context from the website's pages and posts...')";
 	
-	echo '<textarea id="custom_prompt" name="a8csp_chat_with_site_options[custom_prompt]" rows="8" cols="70" maxlength="2000" placeholder="' . esc_attr($placeholder) . '" spellcheck="false">' . esc_textarea($value) . '</textarea>';
-	echo '<div class="a8csp-help-box-info">';
-	echo '<span>Define how your Chatbot should behave, its personality, tone, and expertise. Leave blank to use the default generic assistant.</span><br>';
-	echo '<strong>Security:</strong> Safety instructions are automatically added to prevent prompt injection attacks.';
-	echo '</div>';
+	echo '<textarea id="custom_prompt" name="a8csp_chat_with_site_options[custom_prompt]" rows="8" cols="70" maxlength="1000" placeholder="' . esc_attr($placeholder) . '" spellcheck="false">' . esc_textarea($value) . '</textarea>';
 }
 
 function a8csp_cws_get_api_settings() {
