@@ -4,7 +4,7 @@
  * Plugin URI:  https://github.com/a8cteam51/a8csp-site-chatbot
  * Update URI:  https://github.com/a8cteam51/a8csp-site-chatbot/
  * Description: Create embeddings from your site's content and chat with your site.
- * Version:     1.0.7
+ * Version:     1.0.8
  * Author:      Automattic Special Projects (Team 51)
  * Author URI:  https://specialprojects.automattic.com
  */

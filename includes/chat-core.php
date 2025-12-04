@@ -228,6 +228,9 @@ function a8csp_cws_get_bot_response($history) {
 	// Convert Markdown to HTML for better display
 	$response = a8csp_cws_markdown_to_html( $response );
 
+	// Reformat links to put icon at the end instead of inline
+	$response = a8csp_cws_reformat_links( $response );
+	
 	return $response;
 }
 
