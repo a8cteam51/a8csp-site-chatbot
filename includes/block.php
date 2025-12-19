@@ -43,6 +43,10 @@ function a8csp_register_blocks() {
 				'type' => 'string',
 				'default' => '#007cba',
 			),
+			'initialMessage' => array(
+				'type' => 'string',
+				'default' => 'What can I help you with today?',
+			),
 		),
 		'title' => __( 'A8CSP Site Chatbot', 'a8csp-site-chatbot' ),
 		'description' => __( 'A chatbot interface for interacting with site content.', 'a8csp-site-chatbot' ),
@@ -184,9 +188,10 @@ function a8csp_render_site_chatbot_block( $attributes ) {
 	wp_enqueue_script( 'a8csp-site-chatbot-frontend' );
 	wp_enqueue_style( 'a8csp-site-chatbot-style' );
 
-	// Ensure attributes is an array and get the primary color
+	// Ensure attributes is an array and get the settings
 	$attributes = is_array( $attributes ) ? $attributes : array();
 	$primary_color = isset( $attributes['primaryColor'] ) && ! empty( $attributes['primaryColor'] ) ? $attributes['primaryColor'] : '#007cba';
+	$initial_message = isset( $attributes['initialMessage'] ) && ! empty( $attributes['initialMessage'] ) ? $attributes['initialMessage'] : 'What can I help you with today?';
 	
 	// Generate hover and focus colors
 	$primary_color_hover = a8csp_cws_darken_color( $primary_color, 20 );
@@ -228,6 +233,11 @@ function a8csp_render_site_chatbot_block( $attributes ) {
 	?>
 	<div class="a8csp-chatbot" style="--a8csp-chatbot-primary-color: <?php echo esc_attr( $primary_color ); ?>; --a8csp-chatbot-primary-color-hover: <?php echo esc_attr( $primary_color_hover ); ?>; --a8csp-chatbot-primary-color-focus: <?php echo esc_attr( $primary_color_focus ); ?>">
 		<div id="a8csp-chat-history">
+			<?php if ( empty( $history ) ) : ?>
+				<div class="a8csp-chat-message bot-message">
+					<strong><?php esc_html_e( 'Assistant:', 'a8csp-site-chatbot' ); ?></strong> <?php echo esc_html( $initial_message ); ?>
+				</div>
+			<?php endif; ?>
 			<?php foreach ( $history as $msg ) : ?>
 				<div class="a8csp-chat-message <?php echo esc_attr( $msg['role'] === 'user' ? 'user-message' : 'bot-message' ); ?>">
 					<strong><?php echo esc_html( ucfirst( $msg['role'] ) ); ?>:</strong> 
