@@ -10,6 +10,10 @@
 			"type": "string",
 			"default": "#007cba"
 		},
+		"botName": {
+			"type": "string",
+			"default": "Chatbot"
+		},
 		"initialMessage": {
 			"type": "string",
 			"default": "What can I help you with today?"

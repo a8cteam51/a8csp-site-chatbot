@@ -43,6 +43,10 @@ function a8csp_register_blocks() {
 				'type' => 'string',
 				'default' => '#007cba',
 			),
+			'botName' => array(
+				'type' => 'string',
+				'default' => 'Chatbot',
+			),
 			'initialMessage' => array(
 				'type' => 'string',
 				'default' => 'What can I help you with today?',
@@ -191,6 +195,7 @@ function a8csp_render_site_chatbot_block( $attributes ) {
 	// Ensure attributes is an array and get the settings
 	$attributes = is_array( $attributes ) ? $attributes : array();
 	$primary_color = isset( $attributes['primaryColor'] ) && ! empty( $attributes['primaryColor'] ) ? $attributes['primaryColor'] : '#007cba';
+	$bot_name = isset( $attributes['botName'] ) && ! empty( $attributes['botName'] ) ? $attributes['botName'] : 'Chatbot';
 	$initial_message = isset( $attributes['initialMessage'] ) && ! empty( $attributes['initialMessage'] ) ? $attributes['initialMessage'] : 'What can I help you with today?';
 	
 	// Generate hover and focus colors
@@ -203,6 +208,7 @@ function a8csp_render_site_chatbot_block( $attributes ) {
 		'nonce'    => wp_create_nonce( 'a8csp-chat' ),
 		// Security: Add nonce refresh capability for long sessions
 		'nonce_refresh_action' => 'a8csp_refresh_nonce',
+		'bot_name' => esc_html( $bot_name ),
 	) );
 
 	// Security: Start session with security settings
@@ -235,12 +241,12 @@ function a8csp_render_site_chatbot_block( $attributes ) {
 		<div id="a8csp-chat-history">
 			<?php if ( empty( $history ) ) : ?>
 				<div class="a8csp-chat-message bot-message">
-					<strong><?php esc_html_e( 'Assistant:', 'a8csp-site-chatbot' ); ?></strong> <?php echo esc_html( $initial_message ); ?>
+					<strong><?php echo esc_html( $bot_name ); ?>:</strong> <?php echo esc_html( $initial_message ); ?>
 				</div>
 			<?php endif; ?>
 			<?php foreach ( $history as $msg ) : ?>
 				<div class="a8csp-chat-message <?php echo esc_attr( $msg['role'] === 'user' ? 'user-message' : 'bot-message' ); ?>">
-					<strong><?php echo esc_html( ucfirst( $msg['role'] ) ); ?>:</strong> 
+					<strong><?php echo esc_html( $msg['role'] === 'user' ? 'User' : $bot_name ); ?>:</strong> 
 					<?php 
 					if ( $msg['role'] === 'assistant' ) {
 						// Bot messages may contain HTML from Markdown conversion

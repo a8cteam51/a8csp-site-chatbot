@@ -5,6 +5,7 @@
 	var InspectorControls = blockEditor.InspectorControls;
 	var PanelBody = components.PanelBody;
 	var ColorPicker = components.ColorPicker;
+	var TextControl = components.TextControl;
 	var TextareaControl = components.TextareaControl;
 	var registerBlockType = blocks.registerBlockType;
 
@@ -12,6 +13,7 @@
 		var attributes = props.attributes;
 		var setAttributes = props.setAttributes;
 		var primaryColor = attributes.primaryColor;
+		var botName = attributes.botName;
 		var initialMessage = attributes.initialMessage;
 
 		var blockProps = useBlockProps({
@@ -26,6 +28,14 @@
 					title: __( 'Chatbot Settings', 'a8csp-site-chatbot' ),
 					initialOpen: true 
 				},
+					el( TextControl, {
+						label: __( 'Bot Name', 'a8csp-site-chatbot' ),
+						help: __( 'The name displayed for the chatbot in conversations.', 'a8csp-site-chatbot' ),
+						value: botName,
+						onChange: function( value ) {
+							setAttributes( { botName: value } );
+						}
+					} ),
 					el( TextareaControl, {
 						label: __( 'Initial Message', 'a8csp-site-chatbot' ),
 						help: __( 'The greeting message displayed when visitors first see the chatbot.', 'a8csp-site-chatbot' ),
@@ -55,7 +65,7 @@
 				el( 'div', { className: 'a8csp-chatbot' },
 					el( 'div', { id: 'a8csp-chat-history' },
 						el( 'div', { className: 'a8csp-chat-message bot-message' },
-							el( 'strong', {}, __( 'Assistant:', 'a8csp-site-chatbot' ) ),
+							el( 'strong', {}, botName + ':' ),
 							' ' + initialMessage
 						)
 					),
@@ -76,6 +86,10 @@
 			primaryColor: {
 				type: 'string',
 				default: '#007cba'
+			},
+			botName: {
+				type: 'string',
+				default: 'Chatbot'
 			},
 			initialMessage: {
 				type: 'string',
