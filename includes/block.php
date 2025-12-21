@@ -43,6 +43,14 @@ function a8csp_register_blocks() {
 				'type' => 'string',
 				'default' => '#007cba',
 			),
+			'botName' => array(
+				'type' => 'string',
+				'default' => 'Chatbot',
+			),
+			'initialMessage' => array(
+				'type' => 'string',
+				'default' => 'What can I help you with today?',
+			),
 		),
 		'title' => __( 'A8CSP Site Chatbot', 'a8csp-site-chatbot' ),
 		'description' => __( 'A chatbot interface for interacting with site content.', 'a8csp-site-chatbot' ),
@@ -184,9 +192,11 @@ function a8csp_render_site_chatbot_block( $attributes ) {
 	wp_enqueue_script( 'a8csp-site-chatbot-frontend' );
 	wp_enqueue_style( 'a8csp-site-chatbot-style' );
 
-	// Ensure attributes is an array and get the primary color
+	// Ensure attributes is an array and get the settings
 	$attributes = is_array( $attributes ) ? $attributes : array();
 	$primary_color = isset( $attributes['primaryColor'] ) && ! empty( $attributes['primaryColor'] ) ? $attributes['primaryColor'] : '#007cba';
+	$bot_name = isset( $attributes['botName'] ) && ! empty( $attributes['botName'] ) ? $attributes['botName'] : 'Chatbot';
+	$initial_message = isset( $attributes['initialMessage'] ) && ! empty( $attributes['initialMessage'] ) ? $attributes['initialMessage'] : 'What can I help you with today?';
 	
 	// Generate hover and focus colors
 	$primary_color_hover = a8csp_cws_darken_color( $primary_color, 20 );
@@ -198,6 +208,7 @@ function a8csp_render_site_chatbot_block( $attributes ) {
 		'nonce'    => wp_create_nonce( 'a8csp-chat' ),
 		// Security: Add nonce refresh capability for long sessions
 		'nonce_refresh_action' => 'a8csp_refresh_nonce',
+		'bot_name' => esc_html( $bot_name ),
 	) );
 
 	// Security: Start session with security settings
@@ -228,9 +239,14 @@ function a8csp_render_site_chatbot_block( $attributes ) {
 	?>
 	<div class="a8csp-chatbot" style="--a8csp-chatbot-primary-color: <?php echo esc_attr( $primary_color ); ?>; --a8csp-chatbot-primary-color-hover: <?php echo esc_attr( $primary_color_hover ); ?>; --a8csp-chatbot-primary-color-focus: <?php echo esc_attr( $primary_color_focus ); ?>">
 		<div id="a8csp-chat-history">
+			<?php if ( empty( $history ) ) : ?>
+				<div class="a8csp-chat-message bot-message">
+					<strong><?php echo esc_html( $bot_name ); ?>:</strong> <?php echo esc_html( $initial_message ); ?>
+				</div>
+			<?php endif; ?>
 			<?php foreach ( $history as $msg ) : ?>
 				<div class="a8csp-chat-message <?php echo esc_attr( $msg['role'] === 'user' ? 'user-message' : 'bot-message' ); ?>">
-					<strong><?php echo esc_html( ucfirst( $msg['role'] ) ); ?>:</strong> 
+					<strong><?php echo esc_html( $msg['role'] === 'user' ? 'User' : $bot_name ); ?>:</strong> 
 					<?php 
 					if ( $msg['role'] === 'assistant' ) {
 						// Bot messages may contain HTML from Markdown conversion
@@ -245,7 +261,13 @@ function a8csp_render_site_chatbot_block( $attributes ) {
 		</div>
 		<form id="a8csp-chat-form">
 			<textarea id="a8csp-chat-input" placeholder="Type your message..."></textarea>
-			<button type="submit"><span class="dashicons dashicons-arrow-up-alt"></span></button>
+			<button type="submit">
+				<svg
+					viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" 
+					width="36" height="36" fill="currentColor" 
+					aria-hidden="true"><path fill-rule="evenodd" d="M8 12a.5.5 0 0 0 .5-.5V5.707l2.146 2.147a.5.5 0 0 0 .708-.708l-3-3a.5.5 0 0 0-.708 0l-3 3a.5.5 0 1 0 .708.708L7.5 5.707V11.5a.5.5 0 0 0 .5.5z"/>
+				</svg>
+			</button>
 		</form>
 	</div>
 	<?php

@@ -5,12 +5,16 @@
 	var InspectorControls = blockEditor.InspectorControls;
 	var PanelBody = components.PanelBody;
 	var ColorPicker = components.ColorPicker;
+	var TextControl = components.TextControl;
+	var TextareaControl = components.TextareaControl;
 	var registerBlockType = blocks.registerBlockType;
 
 	function Edit( props ) {
 		var attributes = props.attributes;
 		var setAttributes = props.setAttributes;
 		var primaryColor = attributes.primaryColor;
+		var botName = attributes.botName;
+		var initialMessage = attributes.initialMessage;
 
 		var blockProps = useBlockProps({
 			style: {
@@ -21,8 +25,29 @@
 		return el( 'div', {},
 			el( InspectorControls, {},
 				el( PanelBody, { 
-					title: __( 'Chatbot Colors', 'a8csp-site-chatbot' ),
+					title: __( 'Chatbot Settings', 'a8csp-site-chatbot' ),
 					initialOpen: true 
+				},
+					el( TextControl, {
+						label: __( 'Bot Name', 'a8csp-site-chatbot' ),
+						help: __( 'The name displayed for the chatbot in conversations.', 'a8csp-site-chatbot' ),
+						value: botName,
+						onChange: function( value ) {
+							setAttributes( { botName: value } );
+						}
+					} ),
+					el( TextareaControl, {
+						label: __( 'Initial Message', 'a8csp-site-chatbot' ),
+						help: __( 'The greeting message displayed when visitors first see the chatbot.', 'a8csp-site-chatbot' ),
+						value: initialMessage,
+						onChange: function( value ) {
+							setAttributes( { initialMessage: value } );
+						}
+					} )
+				),
+				el( PanelBody, { 
+					title: __( 'Chatbot Colors', 'a8csp-site-chatbot' ),
+					initialOpen: false 
 				},
 					el( 'p', {},
 						el( 'strong', {}, __( 'Primary Color', 'a8csp-site-chatbot' ) )
@@ -39,13 +64,9 @@
 			el( 'div', blockProps,
 				el( 'div', { className: 'a8csp-chatbot' },
 					el( 'div', { id: 'a8csp-chat-history' },
-						el( 'div', { className: 'a8csp-chat-message user-message' },
-							el( 'strong', {}, __( 'User:', 'a8csp-site-chatbot' ) ),
-							__( 'Hi!', 'a8csp-site-chatbot' )
-						),
 						el( 'div', { className: 'a8csp-chat-message bot-message' },
-							el( 'strong', {}, __( 'Assistant:', 'a8csp-site-chatbot' ) ),
-							__( 'Hey! I\'m here to help you with questions about this site. Try me out on the frontend!', 'a8csp-site-chatbot' )
+							el( 'strong', {}, botName + ':' ),
+							' ' + initialMessage
 						)
 					),
 					el( 'div', { className: 'a8csp-chat-editor-note' },
@@ -65,6 +86,14 @@
 			primaryColor: {
 				type: 'string',
 				default: '#007cba'
+			},
+			botName: {
+				type: 'string',
+				default: 'Chatbot'
+			},
+			initialMessage: {
+				type: 'string',
+				default: 'What can I help you with today?'
 			}
 		},
 		supports: {

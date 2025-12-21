@@ -16,6 +16,9 @@ document.addEventListener( 'DOMContentLoaded', () => {
 		return;
 	}
 
+	// Get the bot name from localized data
+	const botName = a8csp_ajax.bot_name || 'Chatbot';
+
 	// Security: Function to refresh nonce if expired
 	async function refreshNonceIfNeeded() {
 		try {
@@ -58,7 +61,7 @@ document.addEventListener( 'DOMContentLoaded', () => {
 		const typingIndicator = document.createElement( 'div' );
 		typingIndicator.className = 'a8csp-chat-message bot-message typing-indicator';
 		const typingLabel = document.createElement( 'strong' );
-		typingLabel.textContent = 'Assistant:';
+		typingLabel.textContent = botName + ':';
 		typingIndicator.appendChild( typingLabel );
 		const typingDots = document.createElement( 'span' );
 		typingDots.className = 'typing-dots';
@@ -99,7 +102,7 @@ document.addEventListener( 'DOMContentLoaded', () => {
 				const botMsg = document.createElement( 'div' );
 				botMsg.className = 'a8csp-chat-message bot-message';
 				const botLabel = document.createElement( 'strong' );
-				botLabel.textContent = 'Assistant:';
+				botLabel.textContent = botName + ':';
 				botMsg.appendChild( botLabel );
 				
 				// Create a span for the response content to allow HTML links from server
@@ -131,7 +134,7 @@ document.addEventListener( 'DOMContentLoaded', () => {
 								const botMsg = document.createElement( 'div' );
 								botMsg.className = 'a8csp-chat-message bot-message';
 								const botLabel = document.createElement( 'strong' );
-								botLabel.textContent = 'Assistant:';
+								botLabel.textContent = botName + ':';
 								botMsg.appendChild( botLabel );
 								
 								const responseContent = document.createElement( 'span' );
