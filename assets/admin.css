@@ -74,3 +74,30 @@
 	padding-top: 15px;
 	border-top: 1px solid #ddd;
 }
+
+/* Test Connection Button Styles */
+.a8csp-test-connection {
+	margin-top: 15px;
+	padding-top: 15px;
+	border-top: 1px solid #eee;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.a8csp-test-status {
+	font-size: 13px;
+	font-weight: 500;
+}
+
+.a8csp-test-status.loading {
+	color: #666;
+}
+
+.a8csp-test-status.success {
+	color: #00a32a;
+}
+
+.a8csp-test-status.error {
+	color: #d63638;
+}
