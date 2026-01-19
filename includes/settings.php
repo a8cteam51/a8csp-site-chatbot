@@ -127,6 +127,10 @@ function a8csp_cws_pinecone_section_callback() {
 	echo '2. Create an index with <strong>dimensions matching your embedding model</strong> (e.g., 1536 for text-embedding-3-small, 3072 for text-embedding-3-large)<br>';
 	echo '3. Copy your API key and index URL from the dashboard';
 	echo '</div>';
+	echo '<div class="a8csp-test-connection">';
+	echo '<button type="button" class="button button-secondary" id="a8csp-test-pinecone">Test Connection</button>';
+	echo '<span class="a8csp-test-status" id="a8csp-pinecone-status"></span>';
+	echo '</div>';
 }
 
 function a8csp_cws_openai_section_callback() {
@@ -137,6 +141,10 @@ function a8csp_cws_openai_section_callback() {
 	echo '2. Generate an API key from your dashboard<br>';
 	echo '3. Select appropriate models for chat and embeddings<br>';
 	echo '4. Organization ID is optional (only needed for organizations)';
+	echo '</div>';
+	echo '<div class="a8csp-test-connection">';
+	echo '<button type="button" class="button button-secondary" id="a8csp-test-openai">Test Connection</button>';
+	echo '<span class="a8csp-test-status" id="a8csp-openai-status"></span>';
 	echo '</div>';
 }
 
@@ -417,3 +425,185 @@ function a8csp_cws_get_api_settings() {
 		'custom_prompt' => isset($options['custom_prompt']) ? $options['custom_prompt'] : '',
 	);
 }
+
+/**
+ * AJAX handler to test OpenAI API connection
+ */
+function a8csp_cws_test_openai_connection() {
+	// Security: Verify nonce and capabilities
+	check_ajax_referer('a8csp_test_connection', 'nonce');
+	
+	if (!current_user_can('manage_options')) {
+		wp_send_json_error(array('message' => 'Unauthorized'));
+	}
+	
+	$options = get_option('a8csp_chat_with_site_options', array());
+	$api_key = isset($options['openai_api_key']) ? $options['openai_api_key'] : '';
+	$org_id = isset($options['openai_org_id']) ? $options['openai_org_id'] : '';
+	
+	if (empty($api_key)) {
+		wp_send_json_error(array('message' => 'OpenAI API Key is not configured'));
+	}
+	
+	// Test connection by listing models (lightweight endpoint)
+	$url = 'https://api.openai.com/v1/models';
+	
+	$headers = array(
+		'Authorization' => 'Bearer ' . $api_key,
+	);
+	
+	if (!empty($org_id)) {
+		$headers['OpenAI-Organization'] = $org_id;
+	}
+	
+	$response = wp_remote_get($url, array(
+		'headers' => $headers,
+		'timeout' => 15,
+	));
+	
+	if (is_wp_error($response)) {
+		wp_send_json_error(array('message' => 'Connection failed: ' . $response->get_error_message()));
+	}
+	
+	$response_code = wp_remote_retrieve_response_code($response);
+	
+	if ($response_code === 200) {
+		wp_send_json_success(array('message' => 'Connection successful!'));
+	} elseif ($response_code === 401) {
+		wp_send_json_error(array('message' => 'Invalid API key'));
+	} elseif ($response_code === 403) {
+		wp_send_json_error(array('message' => 'Access denied - check your API key permissions'));
+	} else {
+		wp_send_json_error(array('message' => 'Connection failed with HTTP ' . $response_code));
+	}
+}
+add_action('wp_ajax_a8csp_test_openai', 'a8csp_cws_test_openai_connection');
+
+/**
+ * AJAX handler to test Pinecone API connection
+ */
+function a8csp_cws_test_pinecone_connection() {
+	// Security: Verify nonce and capabilities
+	check_ajax_referer('a8csp_test_connection', 'nonce');
+	
+	if (!current_user_can('manage_options')) {
+		wp_send_json_error(array('message' => 'Unauthorized'));
+	}
+	
+	$options = get_option('a8csp_chat_with_site_options', array());
+	$api_key = isset($options['pinecone_api_key']) ? $options['pinecone_api_key'] : '';
+	$server_url = isset($options['pinecone_server_url']) ? $options['pinecone_server_url'] : '';
+	
+	if (empty($api_key)) {
+		wp_send_json_error(array('message' => 'Pinecone API Key is not configured'));
+	}
+	
+	if (empty($server_url)) {
+		wp_send_json_error(array('message' => 'Pinecone Server URL is not configured'));
+	}
+	
+	// Validate URL format
+	if (!filter_var($server_url, FILTER_VALIDATE_URL)) {
+		wp_send_json_error(array('message' => 'Invalid Pinecone Server URL format'));
+	}
+	
+	// Test connection by fetching index stats (lightweight endpoint)
+	$url = rtrim($server_url, '/') . '/describe_index_stats';
+	
+	$headers = array(
+		'Api-Key' => $api_key,
+		'Content-Type' => 'application/json',
+	);
+	
+	$response = wp_remote_post($url, array(
+		'headers' => $headers,
+		'body' => '{}',
+		'timeout' => 15,
+	));
+	
+	if (is_wp_error($response)) {
+		wp_send_json_error(array('message' => 'Connection failed: ' . $response->get_error_message()));
+	}
+	
+	$response_code = wp_remote_retrieve_response_code($response);
+	
+	if ($response_code === 200) {
+		$body = json_decode(wp_remote_retrieve_body($response), true);
+		$vector_count = isset($body['totalVectorCount']) ? intval($body['totalVectorCount']) : 0;
+		wp_send_json_success(array('message' => 'Connection successful! Index contains ' . number_format($vector_count) . ' vectors.'));
+	} elseif ($response_code === 401 || $response_code === 403) {
+		wp_send_json_error(array('message' => 'Invalid API key or access denied'));
+	} elseif ($response_code === 404) {
+		wp_send_json_error(array('message' => 'Index not found - check your Server URL'));
+	} else {
+		wp_send_json_error(array('message' => 'Connection failed with HTTP ' . $response_code));
+	}
+}
+add_action('wp_ajax_a8csp_test_pinecone', 'a8csp_cws_test_pinecone_connection');
+
+/**
+ * Enqueue settings page JavaScript
+ */
+function a8csp_cws_settings_scripts($hook) {
+	// Only load on our settings page
+	if (strpos($hook, 'chat-with-site-settings') === false) {
+		return;
+	}
+	
+	wp_add_inline_script('jquery', '
+		jQuery(document).ready(function($) {
+			var nonce = "' . wp_create_nonce('a8csp_test_connection') . '";
+			
+			$("#a8csp-test-openai").on("click", function() {
+				var $btn = $(this);
+				var $status = $("#a8csp-openai-status");
+				
+				$btn.prop("disabled", true);
+				$status.removeClass("success error").addClass("loading").text("Testing...");
+				
+				$.post(ajaxurl, {
+					action: "a8csp_test_openai",
+					nonce: nonce
+				}, function(response) {
+					$btn.prop("disabled", false);
+					$status.removeClass("loading");
+					
+					if (response.success) {
+						$status.addClass("success").text(response.data.message);
+					} else {
+						$status.addClass("error").text(response.data.message);
+					}
+				}).fail(function() {
+					$btn.prop("disabled", false);
+					$status.removeClass("loading").addClass("error").text("Request failed");
+				});
+			});
+			
+			$("#a8csp-test-pinecone").on("click", function() {
+				var $btn = $(this);
+				var $status = $("#a8csp-pinecone-status");
+				
+				$btn.prop("disabled", true);
+				$status.removeClass("success error").addClass("loading").text("Testing...");
+				
+				$.post(ajaxurl, {
+					action: "a8csp_test_pinecone",
+					nonce: nonce
+				}, function(response) {
+					$btn.prop("disabled", false);
+					$status.removeClass("loading");
+					
+					if (response.success) {
+						$status.addClass("success").text(response.data.message);
+					} else {
+						$status.addClass("error").text(response.data.message);
+					}
+				}).fail(function() {
+					$btn.prop("disabled", false);
+					$status.removeClass("loading").addClass("error").text("Request failed");
+				});
+			});
+		});
+	');
+}
+add_action('admin_enqueue_scripts', 'a8csp_cws_settings_scripts');
