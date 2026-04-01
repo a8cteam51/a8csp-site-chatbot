@@ -232,11 +232,22 @@ function a8csp_cws_get_openai_embedding($text) {
 		'body' => json_encode($data),
 		'timeout' => 30,
 	]);
+
 	if (is_wp_error($response)) {
 		error_log('A8CSP: OpenAI embedding request failed');
 		return [];
 	}
+	
 	$body = json_decode(wp_remote_retrieve_body($response), true);
+	
+	// Check for API errors in response
+	if ( is_array( $body ) && isset( $body['error'] ) ) {
+		$error_message = isset( $body['error']['message'] ) ? $body['error']['message'] : 'Unknown error';
+		$error_type = isset( $body['error']['type'] ) ? $body['error']['type'] : 'unknown';
+		$error_code = isset( $body['error']['code'] ) ? $body['error']['code'] : 'unknown';
+		error_log( sprintf( 'A8CSP: OpenAI API error - Type: %s, Code: %s, Message: %s', $error_type, $error_code, $error_message ) );
+		return [];
+	}
 	
 	// Security: Validate response structure
 	if ( is_array( $body ) && isset( $body['data'][0]['embedding'] ) && is_array( $body['data'][0]['embedding'] ) ) {

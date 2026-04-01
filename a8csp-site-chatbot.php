@@ -4,7 +4,7 @@
  * Plugin URI:  https://github.com/a8cteam51/a8csp-site-chatbot
  * Update URI:  https://github.com/a8cteam51/a8csp-site-chatbot/
  * Description: Create embeddings from your site's content and chat with your site.
- * Version:     1.1.0
+ * Version:     1.2.0
  * Author:      Automattic Special Projects (Team 51)
  * Author URI:  https://specialprojects.automattic.com
  */
@@ -17,18 +17,30 @@ if (!defined('ABSPATH')) {
 // Load Composer autoloader
 require_once plugin_dir_path(__FILE__) . 'vendor/autoload.php';
 
+// Load AI provider registry (needed before constants)
+require_once plugin_dir_path(__FILE__) . 'includes/ai-providers.php';
+
 // Get the options array
 $chat_options = get_option('a8csp_chat_with_site_options', array());
 
 // Initialize constants from options array
 // TODO: Encrypt these values in the database.
+define('AI_PROVIDER', $chat_options['ai_provider'] ?? 'openai');
 define('PINECONE_API_KEY', $chat_options['pinecone_api_key'] ?? '');
 define('PINECONE_SERVER_URL', $chat_options['pinecone_server_url'] ?? '');
-define('OPENAI_API_KEY', $chat_options['openai_api_key'] ?? '');
-define('OPENAI_ORG_ID', $chat_options['openai_org_id'] ?? '');
-define('OPENAI_MODEL', $chat_options['openai_model'] ?? 'gpt-4o-mini');
-define('OPENAI_EMBEDDING_MODEL', $chat_options['openai_embedding_model'] ?? 'text-embedding-3-small');
 define('PINECONE_NAMESPACE', $chat_options['pinecone_namespace'] ?? '');
+
+// Provider-specific constants defined dynamically from the registry.
+// Each field_id becomes an UPPER_CASE constant (e.g. openai_model → OPENAI_MODEL).
+foreach (a8csp_cws_get_ai_providers() as $a8csp_pid => $a8csp_pconf) {
+	foreach ($a8csp_pconf['fields'] as $a8csp_fid => $a8csp_fconf) {
+		$a8csp_const = strtoupper($a8csp_fid);
+		if (!defined($a8csp_const)) {
+			define($a8csp_const, $chat_options[$a8csp_fid] ?? ($a8csp_fconf['default'] ?? ''));
+		}
+	}
+}
+unset($a8csp_pid, $a8csp_pconf, $a8csp_fid, $a8csp_fconf, $a8csp_const);
 
 
 

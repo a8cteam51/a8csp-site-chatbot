@@ -77,6 +77,39 @@ function a8csp_cws_settings_page() {
 		</div>
 	</div>
 	<?php
+	// Build JS config from the provider registry so the toggle logic is fully data-driven.
+	$providers = a8csp_cws_get_ai_providers();
+	$provider_field_map = array();
+	foreach ($providers as $pid => $pconfig) {
+		$provider_field_map[$pid] = array_keys($pconfig['fields']);
+	}
+	?>
+	<script>
+	(function() {
+		var providerSelect = document.getElementById('ai_provider');
+		if (!providerSelect) return;
+
+		var providerFields = <?php echo wp_json_encode($provider_field_map); ?>;
+
+		function toggleProviderFields() {
+			var provider = providerSelect.value;
+
+			Object.keys(providerFields).forEach(function(pid) {
+				providerFields[pid].forEach(function(fieldId) {
+					var el = document.getElementById(fieldId);
+					if (el) el.closest('tr').style.display = pid === provider ? '' : 'none';
+				});
+
+				var helpBox = document.getElementById('a8csp-ai-help-' + pid);
+				if (helpBox) helpBox.style.display = pid === provider ? '' : 'none';
+			});
+		}
+
+		providerSelect.addEventListener('change', toggleProviderFields);
+		toggleProviderFields();
+	})();
+	</script>
+	<?php
 }
 
 /**
@@ -130,14 +163,23 @@ function a8csp_cws_pinecone_section_callback() {
 }
 
 function a8csp_cws_openai_section_callback() {
+	$providers = a8csp_cws_get_ai_providers();
+	$options = get_option('a8csp_chat_with_site_options');
+	$current = isset($options['ai_provider']) ? $options['ai_provider'] : 'openai';
+
 	echo '<p class="a8csp-section-description">Configure your AI service provider settings. This handles <strong>chat completions</strong> and <strong>text embeddings</strong> generation.</p>';
-	echo '<div class="a8csp-help-box a8csp-help-box-blue">';
-	echo '<strong>AI Service Setup Steps:</strong><br>';
-	echo '1. Create an account at <a href="https://openai.com" target="_blank" rel="noopener noreferrer">openai.com</a> (or your preferred AI provider)<br>';
-	echo '2. Generate an API key from your dashboard<br>';
-	echo '3. Select appropriate models for chat and embeddings<br>';
-	echo '4. Organization ID is optional (only needed for organizations)';
-	echo '</div>';
+
+	foreach ($providers as $provider_id => $provider) {
+		$hidden = ($provider_id !== $current) ? ' style="display:none;"' : '';
+		printf('<div class="a8csp-help-box a8csp-help-box-blue" id="a8csp-ai-help-%s"%s>', esc_attr($provider_id), $hidden);
+		echo '<strong>AI Service Setup Steps:</strong><br>';
+		$step_num = 1;
+		foreach ($provider['help_steps'] as $step) {
+			echo $step_num . '. ' . wp_kses_post($step) . '<br>';
+			$step_num++;
+		}
+		echo '</div>';
+	}
 }
 
 function a8csp_cws_pinecone_api_key_callback() {
@@ -159,56 +201,6 @@ function a8csp_cws_pinecone_namespace_callback() {
 	$value = isset($options['pinecone_namespace']) ? $options['pinecone_namespace'] : '';
 	echo '<input type="text" id="pinecone_namespace" name="a8csp_chat_with_site_options[pinecone_namespace]" value="' . esc_attr($value) . '" size="50" />';
 	echo '<p class="description">Optional namespace for organizing vectors</p>';
-}
-
-function a8csp_cws_openai_api_key_callback() {
-	$options = get_option('a8csp_chat_with_site_options');
-	$value = isset($options['openai_api_key']) ? $options['openai_api_key'] : '';
-	echo '<input type="password" id="openai_api_key" name="a8csp_chat_with_site_options[openai_api_key]" value="' . esc_attr($value) . '" size="70" autocomplete="off" autocapitalize="none" spellcheck="false" />';
-	echo '<p class="description">Your OpenAI API key (starts with "sk-")</p>';
-}
-
-function a8csp_cws_openai_org_id_callback() {
-	$options = get_option('a8csp_chat_with_site_options');
-	$value = isset($options['openai_org_id']) ? $options['openai_org_id'] : '';
-	echo '<input type="text" id="openai_org_id" name="a8csp_chat_with_site_options[openai_org_id]" value="' . esc_attr($value) . '" size="50" />';
-	echo '<p class="description">Optional organization ID (only needed for organizations)</p>';
-}
-
-function a8csp_cws_openai_model_callback() {
-	$options = get_option('a8csp_chat_with_site_options');
-	$value = isset($options['openai_model']) ? $options['openai_model'] : 'gpt-4o-mini';
-	
-	$models = array(
-		'gpt-4o-mini' => 'GPT-4o Mini (Recommended)',
-		'gpt-5-mini' => 'GPT-5 Mini',
-		'gpt-5-nano' => 'GPT-5 Nano',
-	);
-	
-	echo '<select id="openai_model" name="a8csp_chat_with_site_options[openai_model]">';
-	foreach ($models as $model_key => $model_name) {
-		echo '<option value="' . esc_attr($model_key) . '"' . selected($value, $model_key, false) . '>' . esc_html($model_name) . '</option>';
-	}
-	echo '</select>';
-	echo '<p class="description">Model used for chat responses</p>';
-}
-
-function a8csp_cws_openai_embedding_model_callback() {
-	$options = get_option('a8csp_chat_with_site_options');
-	$value = isset($options['openai_embedding_model']) ? $options['openai_embedding_model'] : 'text-embedding-3-small';
-	
-	$models = array(
-		'text-embedding-3-small' => 'text-embedding-3-small (1536 dimensions, Recommended)',
-		'text-embedding-3-large' => 'text-embedding-3-large (3072 dimensions)',
-		'text-embedding-ada-002' => 'text-embedding-ada-002 (1536 dimensions, Legacy)',
-	);
-	
-	echo '<select id="openai_embedding_model" name="a8csp_chat_with_site_options[openai_embedding_model]">';
-	foreach ($models as $model_key => $model_name) {
-		echo '<option value="' . esc_attr($model_key) . '"' . selected($value, $model_key, false) . '>' . esc_html($model_name) . '</option>';
-	}
-	echo '</select>';
-	echo '<p class="description">Model used for generating embeddings. Make sure your Pinecone index dimensions match!</p>';
 }
 
 function a8csp_cws_validate_options($input) {
@@ -234,32 +226,34 @@ function a8csp_cws_validate_options($input) {
 		$validated['pinecone_namespace'] = sanitize_text_field($input['pinecone_namespace']);
 	}
 	
-	// Validate OpenAI API Key
-	if (isset($input['openai_api_key'])) {
-		$validated['openai_api_key'] = sanitize_text_field($input['openai_api_key']);
-	}
-	
-	// Validate OpenAI Org ID
-	if (isset($input['openai_org_id'])) {
-		$validated['openai_org_id'] = sanitize_text_field($input['openai_org_id']);
-	}
-	
-	// Validate OpenAI Model
-	if (isset($input['openai_model'])) {
-		$valid_models = array('gpt-4o-mini', 'gpt-5-mini', 'gpt-5-nano');
-		if (in_array($input['openai_model'], $valid_models)) {
-			$validated['openai_model'] = $input['openai_model'];
+	// Validate AI Provider
+	$providers = a8csp_cws_get_ai_providers();
+	if (isset($input['ai_provider'])) {
+		if (array_key_exists($input['ai_provider'], $providers)) {
+			$validated['ai_provider'] = $input['ai_provider'];
 		}
 	}
-	
-	// Validate OpenAI Embedding Model
-	if (isset($input['openai_embedding_model'])) {
-		$valid_models = array('text-embedding-3-small', 'text-embedding-3-large', 'text-embedding-ada-002');
-		if (in_array($input['openai_embedding_model'], $valid_models)) {
-			$validated['openai_embedding_model'] = $input['openai_embedding_model'];
+
+	// Validate all provider-specific fields from the registry
+	foreach ($providers as $provider_id => $provider) {
+		foreach ($provider['fields'] as $field_id => $field_config) {
+			if (!isset($input[$field_id])) {
+				continue;
+			}
+			switch ($field_config['type']) {
+				case 'password':
+				case 'text':
+					$validated[$field_id] = sanitize_text_field($input[$field_id]);
+					break;
+				case 'select':
+					if (isset($field_config['options']) && array_key_exists($input[$field_id], $field_config['options'])) {
+						$validated[$field_id] = $input[$field_id];
+					}
+					break;
+			}
 		}
 	}
-	
+
 	// Validate Custom Prompt
 	if (isset($input['custom_prompt'])) {
 		$custom_prompt = sanitize_textarea_field($input['custom_prompt']);
@@ -276,19 +270,27 @@ function a8csp_cws_validate_options($input) {
 
 function a8csp_cws_check_required_settings($options) {
 	$warnings = array();
-	
+	$provider_id = isset($options['ai_provider']) ? $options['ai_provider'] : 'openai';
+	$providers = a8csp_cws_get_ai_providers();
+	$current = isset($providers[$provider_id]) ? $providers[$provider_id] : null;
+
 	if (empty($options['pinecone_api_key'])) {
 		$warnings[] = 'Pinecone API Key is required for vector storage';
 	}
-	
+
 	if (empty($options['pinecone_server_url'])) {
 		$warnings[] = 'Pinecone Server URL is required for vector storage';
 	}
-	
-	if (empty($options['openai_api_key'])) {
-		$warnings[] = 'OpenAI API Key is required for embeddings and chat';
+
+	// Check provider-specific required fields from the registry
+	if ($current) {
+		foreach ($current['fields'] as $field_id => $field_config) {
+			if (!empty($field_config['required']) && empty($options[$field_id])) {
+				$warnings[] = $field_config['label'] . ' is required';
+			}
+		}
 	}
-	
+
 	return $warnings;
 }
 
@@ -358,38 +360,32 @@ function a8csp_cws_register_settings() {
 		'pinecone_section'
 	);
 	
-	// OpenAI Settings
+	// AI Provider Selector
 	add_settings_field(
-		'openai_api_key',
-		'OpenAI API Key',
-		'a8csp_cws_openai_api_key_callback',
+		'ai_provider',
+		'AI Chat Provider',
+		'a8csp_cws_ai_provider_callback',
 		'chat_with_site_settings',
 		'openai_section'
 	);
-	
-	add_settings_field(
-		'openai_org_id',
-		'OpenAI Organization ID (Optional)',
-		'a8csp_cws_openai_org_id_callback',
-		'chat_with_site_settings',
-		'openai_section'
-	);
-	
-	add_settings_field(
-		'openai_model',
-		'OpenAI Chat Model',
-		'a8csp_cws_openai_model_callback',
-		'chat_with_site_settings',
-		'openai_section'
-	);
-	
-	add_settings_field(
-		'openai_embedding_model',
-		'OpenAI Embedding Model',
-		'a8csp_cws_openai_embedding_model_callback',
-		'chat_with_site_settings',
-		'openai_section'
-	);
+
+	// All provider fields (chat + embedding) registered dynamically from the registry
+	$providers = a8csp_cws_get_ai_providers();
+	foreach ($providers as $provider_id => $provider) {
+		foreach ($provider['fields'] as $field_id => $field_config) {
+			add_settings_field(
+				$field_id,
+				$field_config['label'],
+				'a8csp_cws_render_provider_field',
+				'chat_with_site_settings',
+				'openai_section',
+				array(
+					'field_id' => $field_id,
+					'config' => $field_config,
+				)
+			);
+		}
+	}
 }
 
 function a8csp_cws_ai_chat_section_callback() {
@@ -406,14 +402,23 @@ function a8csp_cws_custom_prompt_callback() {
 
 function a8csp_cws_get_api_settings() {
 	$options = get_option('a8csp_chat_with_site_options', array());
-	return array(
+
+	// Common settings (always present regardless of provider)
+	$settings = array(
+		'ai_provider' => isset($options['ai_provider']) ? $options['ai_provider'] : 'openai',
 		'pinecone_api_key' => isset($options['pinecone_api_key']) ? $options['pinecone_api_key'] : '',
 		'pinecone_server_url' => isset($options['pinecone_server_url']) ? $options['pinecone_server_url'] : '',
 		'pinecone_namespace' => isset($options['pinecone_namespace']) ? $options['pinecone_namespace'] : '',
-		'openai_api_key' => isset($options['openai_api_key']) ? $options['openai_api_key'] : '',
-		'openai_org_id' => isset($options['openai_org_id']) ? $options['openai_org_id'] : '',
-		'openai_model' => isset($options['openai_model']) ? $options['openai_model'] : 'gpt-5-mini',
-		'openai_embedding_model' => isset($options['openai_embedding_model']) ? $options['openai_embedding_model'] : 'text-embedding-3-small',
 		'custom_prompt' => isset($options['custom_prompt']) ? $options['custom_prompt'] : '',
 	);
+
+	// Merge in all provider-specific settings with their defaults
+	foreach (a8csp_cws_get_ai_providers() as $provider_id => $provider) {
+		foreach ($provider['fields'] as $field_id => $field_config) {
+			$default = isset($field_config['default']) ? $field_config['default'] : '';
+			$settings[$field_id] = isset($options[$field_id]) ? $options[$field_id] : $default;
+		}
+	}
+
+	return $settings;
 }
