@@ -29,7 +29,7 @@ if (!defined('ABSPATH')) {
 function a8csp_cws_get_ai_providers() {
 	return array(
 		'openai' => array(
-			'label' => 'OpenAI',
+			'label' => 'OpenAI (GPT)',
 			'fields' => array(
 				'openai_api_key' => array(
 					'label' => 'API Key',
@@ -123,6 +123,46 @@ function a8csp_cws_get_ai_providers() {
 				'Create an account at <a href="https://dash.voyageai.com" target="_blank" rel="noopener noreferrer">dash.voyageai.com</a> for embeddings',
 				'Generate API keys from both dashboards',
 				'Anthropic does not offer its own embeddings — Voyage AI is their recommended partner',
+			),
+		),
+		'google' => array(
+			'label' => 'Google (Gemini)',
+			'fields' => array(
+				'google_api_key' => array(
+					'label' => 'Google AI API Key',
+					'type' => 'password',
+					'size' => 70,
+					'description' => 'Your Google AI Studio API key (starts with "AIza")',
+					'default' => '',
+					'required' => true,
+				),
+				'google_model' => array(
+					'label' => 'Gemini Chat Model',
+					'type' => 'select',
+					'description' => 'Model used for chat responses',
+					'default' => 'gemini-2.5-flash',
+					'options' => array(
+						'gemini-2.5-flash' => 'Gemini 2.5 Flash (Recommended)',
+						'gemini-2.5-pro' => 'Gemini 2.5 Pro',
+						'gemini-2.5-flash-lite' => 'Gemini 2.5 Flash Lite (Faster)',
+					),
+				),
+				'google_embedding_model' => array(
+					'label' => 'Gemini Embedding Model',
+					'type' => 'select',
+					'description' => 'Model used for generating embeddings. Make sure your Pinecone index dimensions match!',
+					'default' => 'gemini-embedding-001',
+					'options' => array(
+						'gemini-embedding-001' => 'gemini-embedding-001 (768–3072 dimensions, Recommended)',
+						'text-embedding-004' => 'text-embedding-004 (768 dimensions, Legacy)',
+					),
+				),
+			),
+			'help_steps' => array(
+				'Create an account at <a href="https://aistudio.google.com" target="_blank" rel="noopener noreferrer">aistudio.google.com</a>',
+				'Generate an API key from the dashboard',
+				'One API key covers both chat and embeddings',
+				'Select a Gemini model for chat and an embedding model for vectorization',
 			),
 		),
 	);
