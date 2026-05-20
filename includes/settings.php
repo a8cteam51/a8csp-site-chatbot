@@ -63,7 +63,7 @@ function a8csp_cws_settings_page() {
 						<!-- Embeddings Configuration Box -->
 						<div class="postbox">
 							<div class="postbox-header">
-								<h2 class="hndle">Embeddings and Vector Database</h2>
+								<h2 class="hndle">Vector Database</h2>
 							</div>
 							<div class="inside">
 								<?php a8csp_cws_do_settings_section('chat_with_site_settings', 'pinecone_section'); ?>
@@ -320,7 +320,7 @@ function a8csp_cws_register_settings() {
 	// Pinecone Settings Section
 	add_settings_section(
 		'pinecone_section',
-		'Embeddings and Vector Database',
+		'Vector Database',
 		'a8csp_cws_pinecone_section_callback',
 		'chat_with_site_settings'
 	);
