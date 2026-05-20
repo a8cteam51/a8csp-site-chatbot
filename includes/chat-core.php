@@ -213,9 +213,9 @@ function a8csp_cws_get_bot_response($history) {
 	if ( empty( $response ) || ! is_string( $response ) ) {
 		if ( defined('WP_DEBUG') && WP_DEBUG ) {
 			$snippet = A8CSP_CWS_Utils::sanitize_for_log($response);
-			error_log('A8CSP: Invalid response from OpenAI completion. ' . $snippet);
+			error_log('A8CSP: Invalid response from completion. ' . $snippet);
 		} else {
-			error_log('A8CSP: Invalid response from OpenAI completion.');	
+			error_log('A8CSP: Invalid response from completion.');
 		}
 		return 'I apologize, but I\'m unable to provide a response right now. Please try again.';
 	}
