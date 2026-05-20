@@ -3,6 +3,14 @@ name: Build and Release
 on:
   release:
     types: [ released ]
+  # Temporary: also run on PR pushes so the workflow can be smoke-tested
+  # before merging. Remove this trigger before merging to trunk — the
+  # release-attachment step has nothing to attach to outside a release context.
+  pull_request:
+    paths:
+      - '.github/workflows/build-release.yml'
+      - 'composer.json'
+      - 'composer.lock'
 
 jobs:
   build:
@@ -38,6 +46,7 @@ jobs:
           zip -r ${{ github.event.repository.name }}.zip ./a8csp-site-chatbot
 
       - name: Release
+        if: github.event_name == 'release'
         uses: softprops/action-gh-release@v1
         with:
           files: ${{ github.event.repository.name }}.zip
