@@ -179,7 +179,7 @@ function a8csp_cws_call_openai_embeddings($text) {
 		$headers['OpenAI-Organization'] = OPENAI_ORG_ID;
 	}
 
-	$response = wp_remote_post( $url, [
+	$response = a8csp_cws_post_with_retry( $url, [
 		'headers' => $headers,
 		'body' => json_encode( $data ),
 		'timeout' => 60,
@@ -229,7 +229,7 @@ function a8csp_cws_call_voyage_embeddings($text) {
 		'Authorization' => 'Bearer ' . VOYAGE_API_KEY,
 	];
 
-	$response = wp_remote_post( $url, [
+	$response = a8csp_cws_post_with_retry( $url, [
 		'headers' => $headers,
 		'body' => json_encode( $data ),
 		'timeout' => 60,
@@ -277,7 +277,7 @@ function a8csp_cws_call_gemini_embeddings($text) {
 		],
 	];
 
-	$response = wp_remote_post( $url, [
+	$response = a8csp_cws_post_with_retry( $url, [
 		'headers' => [ 'Content-Type' => 'application/json' ],
 		'body' => json_encode( $data ),
 		'timeout' => 60,
@@ -369,13 +369,22 @@ function a8csp_cws_query_pinecone($vector) {
 }
 
 /**
- * POST helper that retries on HTTP 503 and 429 with linear backoff.
- * Returns the underlying wp_remote_post response (success, retryable status,
- * or final failure). Used by completion helpers where transient provider
- * overloads are common.
+ * POST helper that retries on HTTP 503 and 429.
+ *
+ * Backoff schedule depends on the status code:
+ *   503 (overload)      → 1s, 3s   — usually transient, clears quickly
+ *   429 (rate-limited)  → 10s, 30s — limit windows are typically per-minute,
+ *                                    short retries are wasted attempts
+ *
+ * If the response includes a numeric Retry-After header that is preferred
+ * over the schedule (capped at 60s to bound worst-case runtime).
  */
 function a8csp_cws_post_with_retry($url, $args, $max_retries = 2) {
-	$delays = array( 1, 3 ); // seconds between attempts after a retryable failure
+	$backoffs = array(
+		429 => array( 10, 30 ),
+		503 => array( 1, 3 ),
+	);
+	$max_retry_after = 60;
 	$response = null;
 
 	for ( $attempt = 0; $attempt <= $max_retries; $attempt++ ) {
@@ -386,15 +395,24 @@ function a8csp_cws_post_with_retry($url, $args, $max_retries = 2) {
 		}
 
 		$code = wp_remote_retrieve_response_code( $response );
-		if ( $code !== 503 && $code !== 429 ) {
+		if ( ! isset( $backoffs[ $code ] ) ) {
 			return $response;
 		}
 
-		if ( $attempt < $max_retries ) {
-			$delay = $delays[ $attempt ] ?? end( $delays );
-			error_log( sprintf( 'A8CSP: Provider returned HTTP %d, retrying in %ds (attempt %d/%d)', intval( $code ), $delay, $attempt + 1, $max_retries ) );
-			sleep( $delay );
+		if ( $attempt >= $max_retries ) {
+			break;
 		}
+
+		$retry_after = wp_remote_retrieve_header( $response, 'retry-after' );
+		if ( $retry_after !== '' && is_numeric( $retry_after ) ) {
+			$delay = min( max( 1, intval( $retry_after ) ), $max_retry_after );
+		} else {
+			$schedule = $backoffs[ $code ];
+			$delay = $schedule[ $attempt ] ?? end( $schedule );
+		}
+
+		error_log( sprintf( 'A8CSP: Provider returned HTTP %d, retrying in %ds (attempt %d/%d)', intval( $code ), $delay, $attempt + 1, $max_retries ) );
+		sleep( $delay );
 	}
 
 	return $response;
