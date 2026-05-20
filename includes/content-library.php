@@ -4,6 +4,79 @@ if (!defined('ABSPATH')) {
 	exit;
 }
 
+/**
+ * Resolve the embedding model currently in use, based on the configured provider.
+ */
+function a8csp_cws_current_embedding_model() {
+	$provider = defined('AI_PROVIDER') ? AI_PROVIDER : 'openai';
+	switch ( $provider ) {
+		case 'google':
+			return defined('GOOGLE_EMBEDDING_MODEL') ? GOOGLE_EMBEDDING_MODEL : '';
+		case 'anthropic':
+			return defined('VOYAGE_EMBEDDING_MODEL') ? VOYAGE_EMBEDDING_MODEL : '';
+		case 'openai':
+		default:
+			return defined('OPENAI_EMBEDDING_MODEL') ? OPENAI_EMBEDDING_MODEL : '';
+	}
+}
+
+/**
+ * Build a fingerprint describing where (and with what) a post would be synced
+ * if synced right now. Stored alongside each synced post so we can detect when
+ * the user has changed provider, embedding model, or Pinecone index/namespace
+ * since the last sync, and surface that as "stale" in the UI.
+ */
+function a8csp_cws_current_sync_fingerprint() {
+	return array(
+		'provider'        => defined('AI_PROVIDER') ? AI_PROVIDER : '',
+		'embedding_model' => a8csp_cws_current_embedding_model(),
+		'pinecone_url'    => defined('PINECONE_SERVER_URL') ? PINECONE_SERVER_URL : '',
+		'pinecone_ns'     => defined('PINECONE_NAMESPACE') ? PINECONE_NAMESPACE : '',
+	);
+}
+
+/**
+ * Compare a post's stored sync fingerprint to the current configuration.
+ * Returns one of: 'synced', 'stale', 'missing'. When 'stale', $reason is
+ * populated with a short human-readable explanation.
+ */
+function a8csp_cws_get_sync_state($post_id, $current_fp, &$reason = '') {
+	$reason = '';
+	$sync_flag = get_post_meta( $post_id, '_pinecone_synced', true );
+
+	if ( $sync_flag !== 'synced' ) {
+		return 'missing';
+	}
+
+	$stored_fp = get_post_meta( $post_id, '_pinecone_sync_fingerprint', true );
+
+	if ( ! is_array( $stored_fp ) || empty( $stored_fp ) ) {
+		$reason = 'synced before destination tracking was added';
+		return 'stale';
+	}
+
+	$diffs = array();
+	if ( ( $stored_fp['provider'] ?? '' ) !== ( $current_fp['provider'] ?? '' ) ) {
+		$diffs[] = 'provider';
+	}
+	if ( ( $stored_fp['embedding_model'] ?? '' ) !== ( $current_fp['embedding_model'] ?? '' ) ) {
+		$diffs[] = 'embedding model';
+	}
+	if ( ( $stored_fp['pinecone_url'] ?? '' ) !== ( $current_fp['pinecone_url'] ?? '' ) ) {
+		$diffs[] = 'Pinecone index';
+	}
+	if ( ( $stored_fp['pinecone_ns'] ?? '' ) !== ( $current_fp['pinecone_ns'] ?? '' ) ) {
+		$diffs[] = 'Pinecone namespace';
+	}
+
+	if ( empty( $diffs ) ) {
+		return 'synced';
+	}
+
+	$reason = 'synced to a different ' . implode( ' / ', $diffs );
+	return 'stale';
+}
+
 function a8csp_cws_get_post_content_as_text($post) {
 	// Security: Validate post object
 	if ( ! $post || ! is_object( $post ) || empty( $post->post_content ) ) {
@@ -179,13 +252,16 @@ function a8csp_cws_bulk_sync_posts($post_ids) {
 				continue;
 			}
 			
+			$sync_fingerprint = a8csp_cws_current_sync_fingerprint();
+
 			// Step 3: Prepare metadata
 			$metadata = array(
 				'post_id' => (string)$post_id,
 				'post_title' => $post->post_title,
 				'post_url' => get_permalink($post_id),
 				'post_type' => $post->post_type,
-				'model' => OPENAI_EMBEDDING_MODEL,
+				'provider' => $sync_fingerprint['provider'],
+				'model' => $sync_fingerprint['embedding_model'],
 			);
 			
 			// Add categories
@@ -223,9 +299,10 @@ function a8csp_cws_bulk_sync_posts($post_ids) {
 				continue;
 			}
 			
-			// Mark as synced
+			// Mark as synced — record the destination so we can detect drift later.
 			update_post_meta($post_id, '_pinecone_synced', 'synced');
 			update_post_meta($post_id, '_pinecone_sync_date', current_time('mysql'));
+			update_post_meta($post_id, '_pinecone_sync_fingerprint', $sync_fingerprint);
 			
 			$results['success_count']++;
 			$results['successful_posts'][] = $post_id;
@@ -418,25 +495,38 @@ function a8csp_cws_sync_page() {
 						</tr>
 					</thead>
 					<tbody>
-						<?php foreach ($posts as $post) : 
-							$sync_status = get_post_meta($post->ID, '_pinecone_synced', true);
+						<?php
+						$current_fp = a8csp_cws_current_sync_fingerprint();
+						foreach ($posts as $post) :
+							$stale_reason = '';
+							$sync_state = a8csp_cws_get_sync_state($post->ID, $current_fp, $stale_reason);
 							$sync_date = get_post_meta($post->ID, '_pinecone_sync_date', true);
-							$is_synced = ($sync_status === 'synced');
 						?>
 							<tr>
 								<td><input type="checkbox" name="post_ids[]" value="<?php echo esc_attr($post->ID); ?>"></td>
 								<td><?php echo esc_html($post->post_title); ?></td>
 								<td><?php echo esc_html($post->post_type); ?></td>
 								<td>
-									<?php if ($is_synced) : ?>
+									<?php if ($sync_state === 'synced') : ?>
 										<span style="color: #46b450;">
 											<span class="dashicons dashicons-yes-alt"></span>
 											In Pinecone
 										</span>
-										<?php if ($sync_date) : 
+										<?php if ($sync_date) :
 											$formatted_date = date('M j, Y g:i A', strtotime($sync_date));
 										?>
 											<br><small style="color: #666;">Synced: <?php echo esc_html($formatted_date); ?></small>
+										<?php endif; ?>
+									<?php elseif ($sync_state === 'stale') : ?>
+										<span style="color: #d63638;">
+											<span class="dashicons dashicons-warning"></span>
+											Stale &mdash; re-sync needed
+										</span>
+										<br><small style="color: #666;"><?php echo esc_html( ucfirst( $stale_reason ) ); ?></small>
+										<?php if ($sync_date) :
+											$formatted_date = date('M j, Y g:i A', strtotime($sync_date));
+										?>
+											<br><small style="color: #666;">Last synced: <?php echo esc_html($formatted_date); ?></small>
 										<?php endif; ?>
 									<?php else : ?>
 										<span style="color: #dc3232;">
