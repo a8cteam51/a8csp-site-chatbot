@@ -1,4 +1,19 @@
 {
+    "name": "a8cteam51/a8csp-site-chatbot",
+    "type": "wordpress-plugin",
+    "description": "Create embeddings from your site's content and chat with your site.",
+    "homepage": "https://github.com/a8cteam51/a8csp-site-chatbot",
+    "license": "GPL-2.0-or-later",
+    "authors": [
+        {
+            "name": "Automattic Special Projects Team",
+            "homepage": "https://specialprojects.automattic.com/"
+        },
+        {
+            "name": "Contributors",
+            "homepage": "https://github.com/a8cteam51/a8csp-site-chatbot/graphs/contributors"
+        }
+    ],
     "require": {
         "erusev/parsedown": "^1.7"
     }
