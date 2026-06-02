@@ -1,160 +1,167 @@
 # A8CSP Site Chatbot
 
-## Description
+A8CSP Site Chatbot is a WordPress plugin for creating embeddings from published site content, storing those vectors in Pinecone, and answering visitor questions through an AI-powered chat block.
 
-A8CSP Site Chatbot is a WordPress plugin that enables a chatbot interface for interacting with your site's content using AI-powered search and responses. It integrates with Pinecone for vector storage and supports multiple AI providers — **OpenAI**, **Google (Gemini)**, and **Anthropic (Claude)** — for embeddings and chat completions, selectable per-site from the settings page.
+The plugin is registered in WordPress as **51 Site Chatbot**. It adds a **51 Chatbot** admin menu with Content Library and Settings pages, plus the `a8csp/site-chatbot` block for placing the chat UI on posts or pages.
 
-### Features
-- **Settings Page**: Pick an AI provider and configure its API keys, plus Pinecone credentials.
-- **Content Library**: Sync site content (posts, pages) to Pinecone for vector search. Synced posts are tracked against the provider, model, and index they were synced to, so the UI can flag stale syncs after a configuration change.
-- **Frontend Block**: A WordPress block for the chat component.
+## What is in this repository
+
+- `a8csp-site-chatbot.php` - plugin bootstrap, plugin metadata, constants initialized from saved settings, Composer autoload loading, include loading, and admin hooks.
+- `includes/ai-providers.php` - registry for supported AI providers, models, required fields, defaults, and settings help text.
+- `includes/settings.php` - WordPress Settings API registration, validation, required-setting warnings, and the **51 Chatbot > Settings** screen.
+- `includes/content-library.php` - the **Content Library** admin page, public content filtering, bulk sync, Pinecone sync metadata, and stale-sync detection.
+- `includes/api-helpers.php` - embedding, completion, Pinecone upsert/query, provider retry, Markdown conversion, and link formatting helpers.
+- `includes/chat-core.php` - chat history validation, retrieval context assembly, prompt construction, response limiting, and frontend rate limiting.
+- `includes/block.php` - block registration, server render callback, frontend script/style registration, and AJAX handlers.
+- `blocks/site-chatbot/` - block metadata, editor JavaScript, frontend JavaScript, and frontend styles.
+- `assets/admin.css` - admin UI styles for the plugin screens.
+- `.github/workflows/build-release.yml` - GitHub release packaging workflow.
+
+There are no tracked custom post types, taxonomies, REST routes, shortcodes, or WP-CLI commands.
 
 ## Requirements
-- WordPress 5.0 or higher
-- PHP 7.4 or higher
-- A Pinecone account for vector storage
-- API access with **one** of the supported providers:
-  - **OpenAI** — one API key (chat + embeddings)
-  - **Google (Gemini)** — one API key (chat + embeddings)
-  - **Anthropic (Claude)** — Anthropic API key for chat *plus* a Voyage AI API key for embeddings (Anthropic does not ship an embedding model; Voyage AI is their recommended partner and requires a credit card on file even on free credits)
 
-## Installation
-1. Upload the plugin files to the `/wp-content/plugins/a8csp-site-chatbot/` directory, or install the plugin through the WordPress plugins screen directly.
-2. Activate the plugin through the 'Plugins' screen in WordPress.
-3. Navigate to the plugin's Settings page to configure API keys.
+- WordPress 5.0 or newer.
+- PHP 7.4 or newer.
+- Composer, to install the locked PHP dependency.
+- A Pinecone index for vector storage.
+- API access for one supported chat/embedding provider combination.
+
+The only PHP package dependency is `erusev/parsedown`, locked in `composer.lock`. There is no `package.json`, npm build step, PHPUnit config, PHPCS config, or markdown lint command in the repository.
+
+## Local Setup
+
+Install PHP dependencies before activating or packaging the plugin:
+
+```sh
+composer install
+```
+
+Then place the repository directory at:
+
+```text
+wp-content/plugins/a8csp-site-chatbot/
+```
+
+Activate **51 Site Chatbot** from the WordPress plugins screen and configure it under **51 Chatbot > Settings**.
 
 ## Configuration
 
-1. Go to **51 Chatbot > Settings** in the WordPress admin.
-2. Under **AI Service**, pick your provider from the **AI Chat Provider** dropdown. The settings page hides fields that don't apply to your choice.
-3. Fill in the provider-specific fields:
-   - **OpenAI**: API key, (optional) Organization ID, Chat Model, Embedding Model.
-   - **Google (Gemini)**: API key, Chat Model, Embedding Model.
-   - **Anthropic (Claude)**: Anthropic API key + Chat Model, *and* Voyage AI API key + Voyage Embedding Model.
-4. Under **Vector Database**, enter your Pinecone API Key and Server URL. Namespace is optional.
-5. Save changes.
+The plugin stores settings in the `a8csp_chat_with_site_options` option. The settings screen has three groups:
 
-**Important — Pinecone index dimensions must match the embedding model.** The plugin sends embeddings to Pinecone at their native dimensionality; a mismatch causes Pinecone to reject the upsert with HTTP 400. Common dimensions:
+- **Chatbot Configuration** - optional custom prompt text used with the default system instructions.
+- **AI Service** - provider selection and provider-specific API/model fields.
+- **Vector Database** - Pinecone API key, Pinecone server URL, and optional Pinecone namespace.
 
-| Embedding model | Dimensions |
-|---|---|
-| OpenAI `text-embedding-3-small` (default) | 1536 |
-| OpenAI `text-embedding-3-large` | 3072 |
-| OpenAI `text-embedding-ada-002` (legacy) | 1536 |
-| Google `gemini-embedding-001` | 3072 |
-| Google `text-embedding-004` (legacy) | 768 |
-| Voyage `voyage-3-large` | 1024 |
+Supported providers are defined in `includes/ai-providers.php`:
 
-If you change provider or embedding model, you will generally need a fresh Pinecone index sized to match. Existing vectors from a different model are not comparable to new ones.
+| Provider | Chat models | Embedding models |
+| --- | --- | --- |
+| OpenAI | `gpt-4o-mini` default, `gpt-5-mini`, `gpt-5-nano` | `text-embedding-3-small` default, `text-embedding-3-large`, `text-embedding-ada-002` |
+| Anthropic + Voyage AI | `claude-sonnet-4-20250514` default, `claude-3-5-haiku-20241022`, `claude-3-5-sonnet-20241022` | `voyage-3-large` default, `voyage-4-large`, `voyage-4-lite` |
+| Google Gemini | `gemini-2.5-flash` default, `gemini-2.5-pro`, `gemini-2.5-flash-lite` | `gemini-embedding-001` default, `text-embedding-004` |
 
-### Content Library
-To vectorize your data, you can use the Content Library option from the left-panel navigation:
-1. Go to **51 Chatbot > Content Library**.
-2. Filter by post type, category, or tag.
-3. Select posts to sync and click "Sync Selected".
+Anthropic is used for chat completions only. Voyage AI is used for embeddings when the Anthropic provider is selected.
 
-Each row shows a status badge:
+### Pinecone Index Dimensions
 
-- **In Pinecone** (green) — the post is synced and the current settings still match where it was synced to.
-- **Stale — re-sync needed** (yellow) — the post is synced, but provider, embedding model, Pinecone index, or namespace has changed since. The reason for the drift is listed inline so you know what changed.
-- **Not in Pinecone** (red) — the post has never been synced from this site.
+Pinecone index dimensions must match the embedding model output. If the dimensions do not match, Pinecone rejects upserts and queries will not use the expected vector space.
 
-Stale posts should be re-selected and re-synced after any provider/index/model change.
+| Embedding model | Dimensions shown by the plugin |
+| --- | --- |
+| `text-embedding-3-small` | 1536 |
+| `text-embedding-3-large` | 3072 |
+| `text-embedding-ada-002` | 1536 |
+| `gemini-embedding-001` | 768-3072 |
+| `text-embedding-004` | 768 |
+| `voyage-3-large` | 1024 |
+| `voyage-4-large` | 1024 |
+| `voyage-4-lite` | 1024 |
 
-## Frequently Asked Questions
+When changing provider, embedding model, Pinecone index, or namespace, plan to resync content. Vectors from different embedding models are not comparable.
 
-### How do I add the chatbot to my site?
-1. Open the Page or Post where you want the chatbot to appear in the WordPress Block Editor.
-2. Click the **+** button to add a new block.
-3. Search for "**A8CSP Site Chatbot**" or find it under the **Widgets** category.
-4. Insert the block where you want the chat interface to appear.
-5. Publish or update your page.
+## Content Library
 
-### Can I customize the chatbot's appearance?
-Yes! When you select the chatbot block in the editor, you'll see a **Chatbot Colors** panel in the right sidebar. Use the color picker to set a **Primary Color** that matches your site's design. This color will be applied to buttons and accent elements in the chat interface.
+Use **51 Chatbot > Content Library** to sync published site content to Pinecone.
 
-### What content does the chatbot know about?
-The chatbot only knows about content you've explicitly synced to Pinecone via the **Content Library**. If a post or page hasn't been synced, the chatbot won't be able to answer questions about it.
+The Content Library:
 
-### How do I make sure the chatbot can answer questions about my content?
-1. Sync your important posts and pages using the Content Library (see above).
-2. Make sure the content is well-written and contains the information you want the chatbot to reference.
-3. Re-sync content whenever you make significant updates to keep the chatbot's knowledge current.
+- Lists public post types, 20 posts per page.
+- Filters posts by category or tag when viewing the `post` type.
+- Syncs selected posts in batches of up to 50.
+- Converts post title and filtered content to plain text for embedding.
+- Sends vectors to Pinecone with metadata for post ID, title, URL, post type, provider, model, and available categories/tags.
 
-### Why isn't the chatbot responding or giving good answers?
-- **Check the Content Library status column**: posts marked "Stale" or "Not in Pinecone" will not be used in answers. Re-sync them.
-- **Verify API configuration**: ensure your selected provider's keys *and* your Pinecone settings are filled in. Missing keys are flagged at the top of the Settings page.
-- **Check the PHP error log** for `A8CSP:` prefixed messages — provider errors (rate limits, auth failures, dimension mismatches) are surfaced there with the HTTP status code.
+After a successful sync, the plugin writes these post meta keys:
 
-### Which provider should I pick?
-- **Gemini** has the lowest setup friction (one API key, generous free tier).
-- **OpenAI** is the original default and the most broadly documented.
-- **Claude** requires two accounts (Anthropic + Voyage) and a credit card on file at Voyage; pick it only if you specifically need Claude for chat.
+- `_pinecone_synced`
+- `_pinecone_sync_date`
+- `_pinecone_sync_fingerprint`
 
-Embedding quality is broadly comparable across providers for most site Q&A use cases. The differentiator is usually setup friction and pricing rather than retrieval quality.
+The fingerprint records the provider, embedding model, Pinecone URL, and namespace used for the sync. The admin table marks content as:
 
-### Can I switch providers later?
-Yes, but switching providers (or changing the embedding model within a provider) means your existing vectors in Pinecone are no longer comparable to new ones. The plugin will mark all previously-synced posts as **Stale** after the change. The recommended workflow is:
+- **In Pinecone** - current settings match the stored sync fingerprint.
+- **Stale - re-sync needed** - the post was synced with different provider, model, index, or namespace settings.
+- **Not in Pinecone** - the post has not been synced by this plugin.
 
-1. Create a new Pinecone index sized for your new embedding model's dimensions.
-2. Update Pinecone Server URL in plugin settings.
-3. Change the AI provider / embedding model.
-4. Bulk-resync all content in the Content Library.
+## Chat Block
 
-### Can I use the chatbot on multiple pages?
-Yes, you can add the chatbot block to as many pages or posts as you like. Each instance will have access to the same synced content.
+The block is registered as `a8csp/site-chatbot` in the `widgets` category with the `format-chat` icon. Its attributes are:
 
-### Does the chatbot work with custom post types?
-Yes, the Content Library allows you to filter and sync content from different post types available on your site.
+- `primaryColor`
+- `botName`
+- `initialMessage`
 
-### How can I customize the chatbot's tone, personality, or behavior?
-Use the **Custom Prompt** field in **51 Chatbot > Settings** under the "Chatbot Configuration" section. This powerful feature lets you personalize many aspects of the chatbot:
+The server render callback enqueues `blocks/site-chatbot/frontend.js` and `blocks/site-chatbot/style.css`, localizes `admin-ajax.php` data, and renders the current PHP session chat history. The editor script provides sidebar controls for bot name, initial message, and primary color.
 
-- **Tone & Personality**: Make the bot formal, casual, friendly, or match your brand voice (e.g., "Respond in a warm, conversational tone like a helpful friend").
-- **Language**: Instruct the bot to respond in a specific language (e.g., "Always respond in Spanish" or "Reply in the same language the user writes in").
-- **Link Formatting**: Control how content is hyperlinked (e.g., "Include relevant links at the end of each response" or "Embed links naturally within the text").
-- **Response Style**: Set preferences for length, structure, or format (e.g., "Keep responses under 3 paragraphs" or "Use bullet points when listing multiple items").
-- **Expertise Focus**: Direct the bot to emphasize certain topics or adopt a specific persona (e.g., "You are a product specialist for our e-commerce store").
+The frontend uses two AJAX actions for both authenticated and anonymous visitors:
 
-The custom prompt is combined with the default system instructions, so you only need to specify what you want to change or add.
+- `a8csp_chat_message`
+- `a8csp_refresh_nonce`
 
-### Is the chatbot secure? Can users hack it or access sensitive data?
-The chatbot is designed with multiple layers of security:
+Chat history is stored in the visitor PHP session as `frontend_chat_history` and is bounded to the last 20 messages. Bot responses are rate-limited per IP with `a8csp_cws_bot_response_<hash>` transients. Nonce refreshes are also rate-limited with `a8csp_nonce_refresh_<hash>` transients.
 
-- **No Database Access**: The chatbot cannot access your WordPress database, files, or server resources. It only works with content you've explicitly synced to the vector database.
-- **Published Content Only**: Only publicly published posts and pages can be synced and referenced. Draft, private, or password-protected content is never accessible.
-- **Input Validation**: All user inputs are sanitized and validated before processing to prevent injection attacks.
-- **Rate Limiting**: Built-in rate limiting prevents abuse (7 requests per minute per visitor). The plugin also retries provider-side 429/503 responses with exponential backoff so transient overloads don't surface to visitors.
-- **Prompt Injection Protection**: The system includes safety instructions that prevent users from manipulating the bot into ignoring its guidelines or executing harmful instructions.
-- **Content Length Limits**: Response and context lengths are capped to prevent resource exhaustion.
+## Retrieval and Responses
 
-The chatbot is a read-only interface to your synced content—it cannot modify your site, access wp-config, read sensitive files, or perform any administrative actions.
+For each visitor message, the plugin:
+
+1. Sanitizes and bounds the message and chat history.
+2. Creates an embedding with the configured provider.
+3. Queries Pinecone for up to five matches.
+4. Loads up to three matching published posts from WordPress.
+5. Builds a context-limited system message.
+6. Sends the chat completion request to the configured provider.
+7. Converts the Markdown response to safe HTML with Parsedown.
+
+Provider requests retry HTTP 429 and 503 responses with bounded backoff. Completion responses are capped at 500 output tokens where the provider API supports that option, and rendered responses are truncated if they exceed the plugin's response limit.
+
+## Development Notes
+
+Add or change provider fields in `a8csp_cws_get_ai_providers()` in `includes/ai-providers.php`. The settings UI, validation, defaults, and constants are derived from that registry.
+
+Provider API behavior lives in `includes/api-helpers.php`. Add matching embedding and completion helpers there when adding a provider.
+
+Block source files are edited directly in `blocks/site-chatbot/`; there is no build pipeline in this repository. Keep `composer.lock` committed when PHP dependencies change.
+
+`vendor/` is ignored locally and generated by Composer. The release workflow installs dependencies and includes `vendor/` in the packaged plugin zip.
+
+## Release Packaging
+
+GitHub releases trigger `.github/workflows/build-release.yml`. The workflow:
+
+1. Runs `composer validate --strict`.
+2. Installs Composer dependencies with `composer install --no-dev --optimize-autoloader --prefer-dist --no-progress`.
+3. Copies the plugin PHP file, `LICENSE`, `README.md`, Composer files, `includes/`, `assets/`, `blocks/`, and `vendor/` into an `a8csp-site-chatbot/` release directory.
+4. Uploads a zipped plugin artifact to the GitHub release.
 
 ## Troubleshooting
 
-### Pinecone returns HTTP 400 on sync
-Dimension mismatch between the embedding model and the Pinecone index. Verify the index dimensions match the table in the Configuration section. You will need a fresh index sized for your model — Pinecone indexes cannot be resized in place.
+- **Pinecone rejects syncs with HTTP 400** - verify that the Pinecone index dimensions match the selected embedding model.
+- **Content is marked stale** - resync after changing provider, embedding model, Pinecone URL, or namespace.
+- **The chat cannot answer a topic** - confirm the relevant published content is synced and not stale.
+- **Provider requests fail with HTTP 429 or 503** - the plugin retries those responses, but smaller sync batches may still be needed on tight provider limits.
+- **Settings warnings appear** - fill in all required Pinecone fields and the required fields for the selected provider.
 
-### Voyage / provider returns HTTP 429 during bulk sync
-Rate limit. The plugin will automatically wait and retry (honoring `Retry-After` when the provider sends it), but on tight free-tier limits you may want to sync in smaller batches. Voyage in particular has a low default RPM.
+## License
 
-### Logs show "Missing OpenAI API configuration" but I'm not using OpenAI
-You are on an old version of the plugin. Update to a release that includes the multi-provider dispatcher.
-
-### Content Library shows posts as "Stale" after a configuration change
-Expected behavior. The plugin tracks the provider, embedding model, Pinecone index, and namespace each post was synced against; when any of those change, previously-synced posts are flagged stale because their stored vectors aren't comparable to new ones. Re-sync to clear the warning.
-
-## Development
-The plugin is organized as:
-
-- `a8csp-site-chatbot.php` — bootstrap, constants, hook registration.
-- `includes/ai-providers.php` — provider registry; add new providers here.
-- `includes/api-helpers.php` — provider dispatchers, per-provider call helpers, retry-with-backoff wrapper, Pinecone helpers.
-- `includes/settings.php` — settings page, registry-driven field rendering, validation.
-- `includes/content-library.php` — bulk sync, sync-fingerprint tracking, Content Library admin page.
-- `includes/chat-core.php` — chat request handling, context retrieval, response building.
-- `includes/block.php` — frontend chat block.
-
-Adding a new AI provider only requires a new entry in `a8csp_cws_get_ai_providers()` plus per-provider call helpers in `api-helpers.php`. The settings UI, PHP constants, and validation are derived from the registry automatically.
-
-For support, contact the developer team or open an issue.
+This project is licensed as `GPL-2.0-or-later`, as declared in `composer.json` and the tracked `LICENSE` file.
