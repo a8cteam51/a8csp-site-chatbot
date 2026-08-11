@@ -93,9 +93,9 @@ function a8csp_cws_get_ai_providers() {
 					'description' => 'Model used for chat responses',
 					'default' => 'claude-sonnet-4-20250514',
 					'options' => array(
-						'claude-sonnet-4-20250514' => 'Claude Sonnet 4 (Recommended)',
-						'claude-3-5-haiku-20241022' => 'Claude 3.5 Haiku (Faster)',
-						'claude-3-5-sonnet-20241022' => 'Claude 3.5 Sonnet',
+						'claude-sonnet-5' => 'Claude Sonnet 5 (Recommended)',
+						'claude-haiku-4-5' => 'Claude Haiku 4.5 (Faster)',
+						'claude-opus-5' => 'Claude Opus 5',
 					),
 				),
 				'voyage_api_key' => array(
