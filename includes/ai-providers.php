@@ -91,7 +91,7 @@ function a8csp_cws_get_ai_providers() {
 					'label' => 'Claude Chat Model',
 					'type' => 'select',
 					'description' => 'Model used for chat responses',
-					'default' => 'claude-sonnet-4-20250514',
+					'default' => 'claude-sonnet-5',
 					'options' => array(
 						'claude-sonnet-5' => 'Claude Sonnet 5 (Recommended)',
 						'claude-haiku-4-5' => 'Claude Haiku 4.5 (Faster)',
