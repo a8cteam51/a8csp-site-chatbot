@@ -140,11 +140,11 @@ function a8csp_cws_get_ai_providers() {
 					'label' => 'Gemini Chat Model',
 					'type' => 'select',
 					'description' => 'Model used for chat responses',
-					'default' => 'gemini-2.5-flash',
+					'default' => 'gemini-3.5-flash',
 					'options' => array(
-						'gemini-2.5-flash' => 'Gemini 2.5 Flash (Recommended)',
-						'gemini-2.5-pro' => 'Gemini 2.5 Pro',
-						'gemini-2.5-flash-lite' => 'Gemini 2.5 Flash Lite (Faster)',
+						'gemini-3.5-flash' => 'Gemini 3.5 Flash (Recommended)',
+						'gemini-3.5-flash-lite' => 'Gemini 3.5 Flash Lite (Faster)',
+						'gemini-2.5-flash' => 'Gemini 2.5 Flash (Legacy)',
 					),
 				),
 				'google_embedding_model' => array(
@@ -154,7 +154,6 @@ function a8csp_cws_get_ai_providers() {
 					'default' => 'gemini-embedding-001',
 					'options' => array(
 						'gemini-embedding-001' => 'gemini-embedding-001 (768–3072 dimensions, Recommended)',
-						'text-embedding-004' => 'text-embedding-004 (768 dimensions, Legacy)',
 					),
 				),
 			),
