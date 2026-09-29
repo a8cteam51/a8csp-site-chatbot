@@ -59,7 +59,7 @@ Supported providers are defined in `includes/ai-providers.php`:
 | --- | --- | --- |
 | OpenAI | `gpt-4o-mini` default, `gpt-5-mini`, `gpt-5-nano` | `text-embedding-3-small` default, `text-embedding-3-large`, `text-embedding-ada-002` |
 | Anthropic + Voyage AI | `claude-sonnet-5` default, `claude-haiku-4-5`, `claude-opus-5` | `voyage-3-large` default, `voyage-4-large`, `voyage-4-lite` |
-| Google Gemini | `gemini-2.5-flash` default, `gemini-2.5-pro`, `gemini-2.5-flash-lite` | `gemini-embedding-001` default, `text-embedding-004` |
+| Google Gemini | `gemini-3.5-flash` default, `gemini-3.5-flash-lite`, `gemini-2.5-flash` | `gemini-embedding-001` |
 
 Anthropic is used for chat completions only. Voyage AI is used for embeddings when the Anthropic provider is selected.
 
@@ -73,7 +73,6 @@ Pinecone index dimensions must match the embedding model output. If the dimensio
 | `text-embedding-3-large` | 3072 |
 | `text-embedding-ada-002` | 1536 |
 | `gemini-embedding-001` | 768-3072 |
-| `text-embedding-004` | 768 |
 | `voyage-3-large` | 1024 |
 | `voyage-4-large` | 1024 |
 | `voyage-4-lite` | 1024 |
