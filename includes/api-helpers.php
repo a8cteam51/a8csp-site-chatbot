@@ -644,21 +644,20 @@ function a8csp_cws_call_gemini_completion($messages) {
 		return '';
 	}
 
-	// Thinking tokens count against maxOutputTokens and can leave no room for the answer.
-	if ( 0 === strpos( GOOGLE_MODEL, 'gemini-2.5-' ) ) {
-		$thinking_config = [ 'thinkingBudget' => 0 ];
-	} else {
-		$thinking_config = [ 'thinkingLevel' => 'minimal' ];
-	}
-
 	$data = [
 		'contents' => $contents,
 		'generationConfig' => [
 			'maxOutputTokens' => 1024,
 			'temperature' => 0.3,
-			'thinkingConfig' => $thinking_config,
 		],
 	];
+
+	// Thinking tokens count against maxOutputTokens and can leave no room for the answer.
+	if ( 0 === strpos( GOOGLE_MODEL, 'gemini-2.5-' ) ) {
+		$data['generationConfig']['thinkingConfig'] = [ 'thinkingBudget' => 0 ];
+	} elseif ( 0 === strpos( GOOGLE_MODEL, 'gemini-3' ) ) {
+		$data['generationConfig']['thinkingConfig'] = [ 'thinkingLevel' => 'minimal' ];
+	}
 	if ( ! empty( $system_parts ) ) {
 		$data['systemInstruction'] = [
 			'parts' => [
