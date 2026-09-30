@@ -4,7 +4,9 @@
  * Plugin URI:  https://github.com/a8cteam51/a8csp-site-chatbot
  * Update URI:  https://github.com/a8cteam51/a8csp-site-chatbot/
  * Description: Create embeddings from your site's content and chat with your site.
- * Version:     1.2.2
+ * Version:     1.3.0
+ * Requires at least: 6.5
+ * Requires PHP: 7.4
  * Author:      Automattic Special Projects (Team 51)
  * Author URI:  https://specialprojects.automattic.com
  */
@@ -14,8 +16,16 @@ if (!defined('ABSPATH')) {
 	exit;
 }
 
+define('A8CSP_CWS_PLUGIN_FILE', __FILE__);
+define('A8CSP_CWS_VERSION', '1.3.0');
+
 // Load Composer autoloader
 require_once plugin_dir_path(__FILE__) . 'vendor/autoload.php';
+
+// Action Scheduler has no Composer autoload entry and must be loaded before plugins_loaded.
+if (file_exists(plugin_dir_path(__FILE__) . 'vendor/woocommerce/action-scheduler/action-scheduler.php')) {
+	require_once plugin_dir_path(__FILE__) . 'vendor/woocommerce/action-scheduler/action-scheduler.php';
+}
 
 // Load AI provider registry (needed before constants)
 require_once plugin_dir_path(__FILE__) . 'includes/ai-providers.php';
@@ -46,6 +56,7 @@ unset($a8csp_pid, $a8csp_pconf, $a8csp_fid, $a8csp_fconf, $a8csp_const);
 
 // Plugin activation hook
 register_activation_hook(__FILE__, 'a8csp_cws_activate');
+register_deactivation_hook(__FILE__, 'a8csp_cws_sync_job_deactivate');
 
 function a8csp_cws_activate() {
     // Nothing specific needed for activation currently
@@ -77,8 +88,14 @@ require_once plugin_dir_path(__FILE__) . 'includes/utils.php';
 require_once plugin_dir_path(__FILE__) . 'includes/api-helpers.php';
 require_once plugin_dir_path(__FILE__) . 'includes/settings.php';
 require_once plugin_dir_path(__FILE__) . 'includes/content-library.php';
+require_once plugin_dir_path(__FILE__) . 'includes/sync-jobs.php';
+require_once plugin_dir_path(__FILE__) . 'includes/sync-jobs-admin.php';
 require_once plugin_dir_path(__FILE__) . 'includes/chat-core.php';
 require_once plugin_dir_path(__FILE__) . 'includes/block.php';
+
+if (defined('WP_CLI') && WP_CLI) {
+	require_once plugin_dir_path(__FILE__) . 'includes/cli.php';
+}
 
 
 // Define all admin page functions first
