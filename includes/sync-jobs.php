@@ -145,7 +145,7 @@ function a8csp_cws_sync_job_query_post_ids( array $filters, $skip_synced ) {
 	$release_meta = ! wp_using_ext_object_cache();
 
 	foreach ( array_chunk( $ids, 500 ) as $chunk ) {
-		update_meta_cache( 'post', $chunk );
+		_prime_post_caches( $chunk, false, true );
 		foreach ( $chunk as $post_id ) {
 			if ( 'synced' === a8csp_cws_get_sync_state( $post_id, $current_fp ) ) {
 				$result['skipped']++;
@@ -154,6 +154,7 @@ function a8csp_cws_sync_job_query_post_ids( array $filters, $skip_synced ) {
 			}
 			if ( $release_meta ) {
 				wp_cache_delete( $post_id, 'post_meta' );
+				wp_cache_delete( $post_id, 'posts' );
 			}
 		}
 	}
