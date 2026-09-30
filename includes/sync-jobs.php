@@ -54,6 +54,7 @@ function a8csp_cws_sync_job_defaults() {
 		'skipped' => 0,
 		'failed' => 0,
 		'failures' => array(),
+		'failed_ids' => array(),
 		'skipped_at_start' => 0,
 		'consecutive_errors' => 0,
 		'last_error' => '',
@@ -417,6 +418,7 @@ function a8csp_cws_sync_job_clean_message( $message ) {
 
 function a8csp_cws_sync_job_add_failure( array $job, $post_id, $message ) {
 	$job['failed']++;
+	$job['failed_ids'][] = (int) $post_id;
 	if ( count( $job['failures'] ) < A8CSP_CWS_SYNC_JOB_MAX_FAILURES ) {
 		$job['failures'][ (int) $post_id ] = a8csp_cws_sync_job_clean_message( $message );
 	}
@@ -945,7 +947,7 @@ function a8csp_cws_sync_job_retry_failed( $user_id = 0 ) {
 		return new WP_Error( 'a8csp_job_active', 'A sync is already in progress. Wait for it to finish or cancel it first.' );
 	}
 
-	$post_ids = array_values( array_filter( array_map( 'intval', array_keys( $job['failures'] ) ) ) );
+	$post_ids = array_values( array_unique( array_filter( array_map( 'intval', $job['failed_ids'] ) ) ) );
 	if ( empty( $post_ids ) ) {
 		return new WP_Error( 'a8csp_no_failures', 'The last sync has no failed posts to retry.' );
 	}

@@ -140,7 +140,7 @@ The **Background sync** panel on the Content Library page syncs every published 
 While a job is active, the panel polls it every 3 seconds, or every 15 seconds while the job is waiting or the browser tab is hidden. It shows the status, a progress bar, synced, skipped, and failed counts, the last error with the next retry time, and the failed posts with links to edit them.
 
 - **Cancel sync** stops the job. A batch already in progress finishes, and posts synced so far stay synced. The panel keeps checking until that batch has saved its counts, and a new sync can start once it has.
-- **Retry failed posts** appears when a finished job has failures. It starts a new job for those posts only, without skipping synced posts. Up to 500 failed posts are kept for retry.
+- **Retry failed posts** appears when a finished job has failures. It starts a new job for those posts only, without skipping synced posts. Every failed post is retried; the panel lists the first 50 reasons and the job keeps up to 500.
 - **Dismiss** clears a finished job from the panel.
 
 Status polls and every Action Scheduler queue run also check that an active job still has a batch scheduled, and queue one if it was lost. After a PHP fatal error or timeout, the interrupted batch is retried one post at a time, so a single problem post is recorded as failed instead of stopping the job. Deactivating the plugin unschedules its pending actions.
