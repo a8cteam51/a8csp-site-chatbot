@@ -244,7 +244,25 @@ The frontend uses two AJAX actions for both authenticated and anonymous visitors
 - `a8csp_chat_message`
 - `a8csp_refresh_nonce`
 
-Chat history is stored in the visitor PHP session as `frontend_chat_history` and is bounded to the last 20 messages. Bot responses are rate-limited per IP with `a8csp_cws_bot_response_<hash>` transients. Nonce refreshes are also rate-limited with `a8csp_nonce_refresh_<hash>` transients.
+Chat history is stored in the visitor PHP session as `frontend_chat_history` and is bounded to the last 20 messages.
+
+### Message Limits
+
+The chat endpoint is public, so every message spends the site's AI credits. Each message is checked against three limits before any provider call:
+
+- **7 per minute per IP** - `a8csp_cws_bot_response_<hash>` transients.
+- **Daily per IP** - **Daily Message Limit per Visitor** under **51 Chatbot > Settings**, default 50. Stored in `a8csp_cws_chat_ip_<hash>` transients.
+- **Daily for the whole site** - **Daily Message Limit (Whole Site)**, default 500. This is the hard cap on AI spend, since it also holds against many IPs. The count is kept in the `a8csp_cws_chat_count_<Ymd>` option, incremented in SQL so concurrent requests are all counted, and older days are deleted on the first message of a new day. The settings screen shows today's count.
+
+Days follow the site timezone, and `0` turns a daily limit off. A visitor over a limit gets a short "come back tomorrow" reply. Nonce refreshes are limited to one per minute per IP with `a8csp_nonce_refresh_<hash>` transients.
+
+The IP is `REMOTE_ADDR`. Forwarded-IP headers are not trusted by default, because anyone can send them to dodge the per-IP limits. If the site is behind a proxy or CDN, every visitor shares one IP; the settings screen shows **Your IP as the chatbot sees it** so an admin can check. In that case, name the header that carries the visitor IP in `wp-config.php`:
+
+```php
+define( 'A8CSP_CWS_CLIENT_IP_HEADER', 'HTTP_X_FORWARDED_FOR' );
+```
+
+The first address in the header is used. The `a8csp_cws_client_ip` filter can override the result.
 
 ## Retrieval and Responses
 

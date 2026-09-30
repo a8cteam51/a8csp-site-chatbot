@@ -17,6 +17,12 @@ function a8csp_cws_get_bot_response($history) {
 		return 'You\'re asking questions too quickly. Please wait a moment before trying again.';
 	}
 
+	$daily_limit_message = a8csp_cws_check_daily_limits();
+	if ( '' !== $daily_limit_message ) {
+		error_log( 'A8CSP: Daily message limit reached' );
+		return $daily_limit_message;
+	}
+
 	// Security: Validate input history
 	if ( ! is_array( $history ) || empty( $history ) ) {
 		error_log('A8CSP: Invalid history provided to get_bot_response');
@@ -274,8 +280,7 @@ function a8csp_cws_get_prompt() {
  */
 function a8csp_cws_check_bot_response_rate_limit() {
 	// Security: Basic rate limiting - 7 requests per minute per IP
-	$ip = $_SERVER['REMOTE_ADDR'] ?? '';
-	$rate_key = 'a8csp_cws_bot_response_' . md5( $ip );
+	$rate_key = 'a8csp_cws_bot_response_' . md5( a8csp_cws_get_client_ip() );
 	$current_count = get_transient( $rate_key );
 	
 	if ( $current_count === false ) {
@@ -290,6 +295,88 @@ function a8csp_cws_check_bot_response_rate_limit() {
 		set_transient( $rate_key, $current_count + 1, 60 );
 		return true;
 	}
+}
+
+/**
+ * Visitor IP for rate limiting; forwarded headers are spoofable, so one is trusted only when A8CSP_CWS_CLIENT_IP_HEADER names it.
+ */
+function a8csp_cws_get_client_ip() {
+	$ip = isset( $_SERVER['REMOTE_ADDR'] ) ? (string) $_SERVER['REMOTE_ADDR'] : '';
+
+	if ( defined( 'A8CSP_CWS_CLIENT_IP_HEADER' ) && ! empty( $_SERVER[ A8CSP_CWS_CLIENT_IP_HEADER ] ) ) {
+		// The first address in X-Forwarded-For style lists is the original client.
+		$forwarded = trim( explode( ',', (string) $_SERVER[ A8CSP_CWS_CLIENT_IP_HEADER ] )[0] );
+		if ( filter_var( $forwarded, FILTER_VALIDATE_IP ) ) {
+			$ip = $forwarded;
+		}
+	}
+
+	return (string) apply_filters( 'a8csp_cws_client_ip', $ip );
+}
+
+/**
+ * Daily message limits from settings; 0 means no limit.
+ */
+function a8csp_cws_get_daily_limits() {
+	$options = get_option( 'a8csp_chat_with_site_options', array() );
+
+	return array(
+		'site' => isset( $options['daily_message_limit'] ) ? absint( $options['daily_message_limit'] ) : A8CSP_CWS_DEFAULT_DAILY_LIMIT,
+		'ip'   => isset( $options['daily_message_limit_per_ip'] ) ? absint( $options['daily_message_limit_per_ip'] ) : A8CSP_CWS_DEFAULT_DAILY_LIMIT_PER_IP,
+	);
+}
+
+function a8csp_cws_site_message_count_option() {
+	return 'a8csp_cws_chat_count_' . wp_date( 'Ymd' );
+}
+
+/**
+ * Messages counted today across the whole site.
+ */
+function a8csp_cws_get_site_message_count() {
+	global $wpdb;
+
+	return (int) $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", a8csp_cws_site_message_count_option() ) );
+}
+
+/**
+ * Count one message for today and return the new total. Done in SQL so concurrent requests can't lose increments.
+ */
+function a8csp_cws_increment_site_message_count() {
+	global $wpdb;
+
+	$option = a8csp_cws_site_message_count_option();
+	$inserted = $wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, '1', 'no')", $option ) );
+
+	if ( $inserted ) {
+		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s AND option_name <> %s", $wpdb->esc_like( 'a8csp_cws_chat_count_' ) . '%', $option ) );
+	} else {
+		$wpdb->query( $wpdb->prepare( "UPDATE {$wpdb->options} SET option_value = option_value + 1 WHERE option_name = %s", $option ) );
+	}
+
+	return a8csp_cws_get_site_message_count();
+}
+
+/**
+ * Enforce the per-IP and site-wide daily limits. Returns a message for the visitor when a limit is reached, or ''.
+ */
+function a8csp_cws_check_daily_limits() {
+	$limits = a8csp_cws_get_daily_limits();
+
+	if ( $limits['ip'] > 0 ) {
+		$ip_key = 'a8csp_cws_chat_ip_' . md5( a8csp_cws_get_client_ip() . '|' . wp_date( 'Ymd' ) );
+		$ip_count = (int) get_transient( $ip_key );
+		if ( $ip_count >= $limits['ip'] ) {
+			return 'You have reached today\'s limit for questions. Please come back tomorrow.';
+		}
+		set_transient( $ip_key, $ip_count + 1, DAY_IN_SECONDS );
+	}
+
+	if ( $limits['site'] > 0 && a8csp_cws_increment_site_message_count() > $limits['site'] ) {
+		return 'The assistant has answered all the questions it can for today. Please come back tomorrow.';
+	}
+
+	return '';
 }
 
 /**

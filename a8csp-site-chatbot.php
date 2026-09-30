@@ -4,7 +4,7 @@
  * Plugin URI:  https://github.com/a8cteam51/a8csp-site-chatbot
  * Update URI:  https://github.com/a8cteam51/a8csp-site-chatbot/
  * Description: Create embeddings from your site's content and chat with your site.
- * Version:     1.3.1
+ * Version:     1.3.2
  * Requires at least: 6.5
  * Requires PHP: 7.4
  * Author:      Automattic Special Projects (Team 51)
@@ -17,7 +17,9 @@ if (!defined('ABSPATH')) {
 }
 
 define('A8CSP_CWS_PLUGIN_FILE', __FILE__);
-define('A8CSP_CWS_VERSION', '1.3.1');
+define('A8CSP_CWS_VERSION', '1.3.2');
+define('A8CSP_CWS_DEFAULT_DAILY_LIMIT', 500);
+define('A8CSP_CWS_DEFAULT_DAILY_LIMIT_PER_IP', 50);
 
 // Load Composer autoloader
 require_once plugin_dir_path(__FILE__) . 'vendor/autoload.php';
