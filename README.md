@@ -262,7 +262,7 @@ The IP is `REMOTE_ADDR`. Forwarded-IP headers are not trusted by default, becaus
 define( 'A8CSP_CWS_CLIENT_IP_HEADER', 'HTTP_X_FORWARDED_FOR' );
 ```
 
-The plugin uses the rightmost address in the header, which is the one your proxy added. Addresses to its left are sent by the client and can be faked. If more than one proxy sits in front of the site (for example a CDN and then a load balancer), set how many entries from the right to skip past with `A8CSP_CWS_CLIENT_IP_TRUSTED_HOPS` (default `1`). An invalid address falls back to `REMOTE_ADDR`. The `a8csp_cws_client_ip` filter can override the result.
+The plugin uses the rightmost address in the header, which is the one your proxy added. Addresses to its left are sent by the client and can be faked. If more than one proxy sits in front of the site, set `A8CSP_CWS_CLIENT_IP_TRUSTED_HOPS` to the number of proxies (default `1`). Behind a CDN and a load balancer, use `2`; a value that is too low puts every visitor in the CDN's bucket. An invalid address falls back to `REMOTE_ADDR`. The `a8csp_cws_client_ip` filter can override the result.
 
 ## Retrieval and Responses
 
