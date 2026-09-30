@@ -111,12 +111,27 @@ function a8csp_cws_get_sync_state($post_id, $current_fp, &$reason = '') {
 		$diffs[] = 'Pinecone namespace';
 	}
 
-	if ( empty( $diffs ) ) {
-		return 'synced';
+	if ( ! empty( $diffs ) ) {
+		$reason = 'synced to a different ' . implode( ' / ', $diffs );
+		return 'stale';
 	}
 
-	$reason = 'synced to a different ' . implode( ' / ', $diffs );
-	return 'stale';
+	// Posts synced before hashes were stored have none and stay synced.
+	$stored_hash = get_post_meta( $post_id, '_pinecone_content_hash', true );
+	$post = '' !== $stored_hash ? get_post( $post_id ) : null;
+	if ( $post && a8csp_cws_post_content_hash( $post ) !== $stored_hash ) {
+		$reason = 'title, slug or content changed since the last sync';
+		return 'stale';
+	}
+
+	return 'synced';
+}
+
+/**
+ * Hash of the fields a post's vector and link come from (not the rendered content, which can vary per request).
+ */
+function a8csp_cws_post_content_hash( $post ) {
+	return md5( $post->post_title . "\n" . $post->post_name . "\n" . $post->post_content );
 }
 
 function a8csp_cws_get_post_content_as_text($post) {
@@ -412,6 +427,7 @@ function a8csp_cws_sync_posts( array $post_ids, array $args = array() ) {
 					update_post_meta( $post_id, '_pinecone_synced', 'synced' );
 					update_post_meta( $post_id, '_pinecone_sync_date', $sync_date );
 					update_post_meta( $post_id, '_pinecone_sync_fingerprint', $sync_fingerprint );
+					update_post_meta( $post_id, '_pinecone_content_hash', a8csp_cws_post_content_hash( $posts[ $post_id ] ) );
 					$result['synced'][] = $post_id;
 				} elseif ( isset( $pending[ $post_id ] ) ) {
 					continue;

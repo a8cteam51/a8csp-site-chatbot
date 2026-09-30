@@ -117,11 +117,12 @@ After a successful sync, the plugin writes these post meta keys:
 - `_pinecone_synced`
 - `_pinecone_sync_date`
 - `_pinecone_sync_fingerprint`
+- `_pinecone_content_hash`
 
-The fingerprint records the provider, embedding model, Pinecone URL, and namespace used for the sync. The admin table marks content as:
+The fingerprint records the provider, embedding model, Pinecone URL, and namespace used for the sync. The content hash covers the post title, slug, and raw content, so editing any of them after a sync marks the post stale. Posts synced before the hash was added have none and are not marked stale until they are synced again. The admin table marks content as:
 
 - **In Pinecone** - current settings match the stored sync fingerprint.
-- **Stale - re-sync needed** - the post was synced with different provider, model, index, or namespace settings.
+- **Stale - re-sync needed** - the post was synced with different provider, model, index, or namespace settings, or its title, slug, or content changed since the last sync.
 - **Not in Pinecone** - the post has not been synced by this plugin.
 
 ## Background Sync
@@ -283,7 +284,7 @@ GitHub releases trigger `.github/workflows/build-release.yml`. The workflow:
 ## Troubleshooting
 
 - **Pinecone rejects syncs with HTTP 400** - verify that the Pinecone index dimensions match the selected embedding model.
-- **Content is marked stale** - resync after changing provider, embedding model, Pinecone URL, or namespace.
+- **Content is marked stale** - resync after changing provider, embedding model, Pinecone URL, or namespace, or after editing the post.
 - **The chat cannot answer a topic** - confirm the relevant published content is synced and not stale.
 - **Provider requests fail with HTTP 429 or 503** - the plugin retries those responses, and background sync waits and retries on its own. On tight provider limits, lower the `a8csp_cws_sync_batch_size` filter, add an `a8csp_cws_sync_batch_delay`, or use `--batch-size` with WP-CLI.
 - **A sync keeps hitting the rate limit on the same batch** - one embedding request probably needs more tokens than the key's per-minute limit allows, which is common on free tiers. Lower `max_chars` with the `a8csp_cws_embedding_batch_limits` filter, or lower `a8csp_cws_sync_batch_size`.
