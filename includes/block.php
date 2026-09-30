@@ -171,8 +171,7 @@ function a8csp_handle_chat_message() {
  */
 function a8csp_handle_nonce_refresh() {
 	// Security: Rate limiting for nonce refresh (max 1 per minute per IP)
-	$ip = $_SERVER['REMOTE_ADDR'] ?? '';
-	$rate_key = 'a8csp_nonce_refresh_' . md5( $ip );
+	$rate_key = 'a8csp_nonce_refresh_' . md5( a8csp_cws_get_client_ip() );
 	$last_refresh = get_transient( $rate_key );
 	
 	if ( $last_refresh ) {

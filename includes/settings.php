@@ -264,7 +264,13 @@ function a8csp_cws_validate_options($input) {
 		}
 		$validated['custom_prompt'] = $custom_prompt;
 	}
-	
+
+	foreach ( array( 'daily_message_limit', 'daily_message_limit_per_ip' ) as $limit_field ) {
+		if ( isset( $input[ $limit_field ] ) ) {
+			$validated[ $limit_field ] = max( 0, (int) $input[ $limit_field ] );
+		}
+	}
+
 	return $validated;
 }
 
@@ -334,6 +340,22 @@ function a8csp_cws_register_settings() {
 		'chat_with_site_settings',
 		'ai_chat_section'
 	);
+
+	add_settings_field(
+		'daily_message_limit',
+		'Daily Message Limit (Whole Site)',
+		'a8csp_cws_daily_message_limit_callback',
+		'chat_with_site_settings',
+		'ai_chat_section'
+	);
+
+	add_settings_field(
+		'daily_message_limit_per_ip',
+		'Daily Message Limit per Visitor',
+		'a8csp_cws_daily_message_limit_per_ip_callback',
+		'chat_with_site_settings',
+		'ai_chat_section'
+	);
 	
 	// Pinecone Settings
 	add_settings_field(
@@ -398,6 +420,21 @@ function a8csp_cws_custom_prompt_callback() {
 	$placeholder = "Personalize your chatbot's behavior, personality, tone, and expertise: (e.g. 'Your responses should be based solely on the provided context from the website's pages and posts...')";
 	
 	echo '<textarea id="custom_prompt" name="a8csp_chat_with_site_options[custom_prompt]" rows="8" cols="70" maxlength="1000" placeholder="' . esc_attr($placeholder) . '" spellcheck="false">' . esc_textarea($value) . '</textarea>';
+}
+
+function a8csp_cws_daily_message_limit_callback() {
+	$limits = a8csp_cws_get_daily_limits();
+
+	echo '<input type="number" id="daily_message_limit" name="a8csp_chat_with_site_options[daily_message_limit]" value="' . esc_attr( $limits['site'] ) . '" min="0" step="1" class="small-text">';
+	echo '<p class="description">Chat messages answered per day across all visitors, which caps AI costs. 0 means no limit. Today: ' . esc_html( number_format_i18n( a8csp_cws_get_site_message_count() ) ) . '.</p>';
+}
+
+function a8csp_cws_daily_message_limit_per_ip_callback() {
+	$limits = a8csp_cws_get_daily_limits();
+
+	echo '<input type="number" id="daily_message_limit_per_ip" name="a8csp_chat_with_site_options[daily_message_limit_per_ip]" value="' . esc_attr( $limits['ip'] ) . '" min="0" step="1" class="small-text">';
+	echo '<p class="description">Chat messages per day from one IP address, on top of the limit of 7 per minute. 0 means no limit.</p>';
+	echo '<p class="description">Your IP as the chatbot sees it: <code>' . esc_html( a8csp_cws_get_client_ip() ) . '</code>. If this isn\'t your real IP, the site is behind a proxy and every visitor shares one limit; set the <code>A8CSP_CWS_CLIENT_IP_HEADER</code> constant to the header holding the visitor IP (for example <code>HTTP_X_FORWARDED_FOR</code>).</p>';
 }
 
 function a8csp_cws_get_api_settings() {
