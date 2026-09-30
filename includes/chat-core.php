@@ -102,6 +102,11 @@ function a8csp_cws_get_bot_response($history) {
 				continue;
 			}
 
+			// A post can get a password after it was synced, and its vector stays in Pinecone.
+			if ( '' !== (string) $post->post_password ) {
+				continue;
+			}
+
 			// Security: Check if user can read this post type
 			$post_type_obj = get_post_type_object( $post->post_type );
 			if ( ! $post_type_obj || ! $post_type_obj->public ) {

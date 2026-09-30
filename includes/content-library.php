@@ -26,13 +26,55 @@ function a8csp_cws_current_embedding_model() {
  * the user has changed provider, embedding model, or Pinecone index/namespace
  * since the last sync, and surface that as "stale" in the UI.
  */
-function a8csp_cws_current_sync_fingerprint() {
+function a8csp_cws_current_sync_fingerprint( $options = null ) {
+	if ( is_array( $options ) ) {
+		return a8csp_cws_sync_fingerprint_from_options( $options );
+	}
+
 	return array(
 		'provider'        => defined('AI_PROVIDER') ? AI_PROVIDER : '',
 		'embedding_model' => a8csp_cws_current_embedding_model(),
 		'pinecone_url'    => defined('PINECONE_SERVER_URL') ? PINECONE_SERVER_URL : '',
 		'pinecone_ns'     => defined('PINECONE_NAMESPACE') ? PINECONE_NAMESPACE : '',
 	);
+}
+
+/**
+ * The sync fingerprint for a stored settings array, resolved the same way the plugin's constants are.
+ */
+function a8csp_cws_sync_fingerprint_from_options( array $options ) {
+	$provider = isset( $options['ai_provider'] ) ? $options['ai_provider'] : 'openai';
+	$model_fields = array(
+		'google' => 'google_embedding_model',
+		'anthropic' => 'voyage_embedding_model',
+	);
+	$model_field = isset( $model_fields[ $provider ] ) ? $model_fields[ $provider ] : 'openai_embedding_model';
+
+	$model = null;
+	if ( isset( $options[ $model_field ] ) ) {
+		$model = $options[ $model_field ];
+	} else {
+		foreach ( a8csp_cws_get_ai_providers() as $provider_config ) {
+			if ( isset( $provider_config['fields'][ $model_field ] ) ) {
+				$model = $provider_config['fields'][ $model_field ]['default'] ?? '';
+				break;
+			}
+		}
+	}
+
+	return array(
+		'provider'        => $provider,
+		'embedding_model' => null === $model ? '' : $model,
+		'pinecone_url'    => $options['pinecone_server_url'] ?? '',
+		'pinecone_ns'     => $options['pinecone_namespace'] ?? '',
+	);
+}
+
+/**
+ * Whether a post may be sent to the embedding provider: published and not password-protected.
+ */
+function a8csp_cws_post_is_syncable( $post_id ) {
+	return 'publish' === get_post_status( $post_id ) && '' === (string) get_post_field( 'post_password', $post_id, 'raw' );
 }
 
 /**
@@ -197,9 +239,213 @@ function a8csp_cws_render_pagination($posts_query, $post_type, $category, $tag, 
 	echo '</div>';
 }
 
+/**
+ * Build the Pinecone metadata stored alongside a post's vector.
+ */
+function a8csp_cws_build_post_vector_metadata( $post, $sync_fingerprint ) {
+	$post_id = (int) $post->ID;
+
+	$metadata = array(
+		'post_id' => (string) $post_id,
+		'post_title' => $post->post_title,
+		'post_url' => get_permalink( $post_id ),
+		'post_type' => $post->post_type,
+		'provider' => $sync_fingerprint['provider'],
+		'model' => $sync_fingerprint['embedding_model'],
+	);
+
+	$categories = get_the_category( $post_id );
+	if ( ! empty( $categories ) ) {
+		$category_names = array();
+		$category_ids = array();
+		foreach ( $categories as $category ) {
+			$category_names[] = $category->name;
+			$category_ids[] = (string) $category->term_id;
+		}
+		$metadata['categories'] = implode( ', ', $category_names );
+		$metadata['category_ids'] = implode( ', ', $category_ids );
+	}
+
+	$tags = get_the_tags( $post_id );
+	if ( ! empty( $tags ) && ! is_wp_error( $tags ) ) {
+		$tag_names = array();
+		$tag_ids = array();
+		foreach ( $tags as $tag ) {
+			$tag_names[] = $tag->name;
+			$tag_ids[] = (string) $tag->term_id;
+		}
+		$metadata['tags'] = implode( ', ', $tag_names );
+		$metadata['tag_ids'] = implode( ', ', $tag_ids );
+	}
+
+	return $metadata;
+}
+
+/**
+ * Embed and upsert a set of posts with one batched embedding call and one batched Pinecone upsert.
+ */
+function a8csp_cws_sync_posts( array $post_ids, array $args = array() ) {
+	$max_retries = isset( $args['max_retries'] ) ? max( 0, (int) $args['max_retries'] ) : 2;
+
+	$result = array(
+		'synced' => array(),
+		'failed' => array(),
+		'pending' => array(),
+		'fatal' => null,
+	);
+
+	$ids = array();
+	foreach ( $post_ids as $post_id ) {
+		$post_id = intval( $post_id );
+		if ( $post_id <= 0 ) {
+			$result['failed'][ $post_id ] = "Invalid post ID: {$post_id}";
+			continue;
+		}
+		if ( ! in_array( $post_id, $ids, true ) ) {
+			$ids[] = $post_id;
+		}
+	}
+
+	if ( empty( $ids ) ) {
+		return $result;
+	}
+
+	_prime_post_caches( $ids, true, true );
+
+	$sync_fingerprint = a8csp_cws_current_sync_fingerprint();
+	$posts = array();
+	$texts = array();
+
+	foreach ( $ids as $post_id ) {
+		$post = get_post( $post_id );
+		if ( ! $post ) {
+			$result['failed'][ $post_id ] = "Post ID {$post_id} not found";
+			continue;
+		}
+
+		if ( '' !== (string) $post->post_password ) {
+			$result['failed'][ $post_id ] = "Post '{$post->post_title}' is password-protected, so it is not synced";
+			continue;
+		}
+
+		try {
+			$post_content = a8csp_cws_get_post_content_as_text( $post );
+		} catch ( Throwable $e ) {
+			$result['failed'][ $post_id ] = "Exception for '{$post->post_title}': " . $e->getMessage();
+			continue;
+		}
+
+		if ( empty( $post_content ) ) {
+			$result['failed'][ $post_id ] = "Post '{$post->post_title}' has empty content";
+			continue;
+		}
+
+		$posts[ $post_id ] = $post;
+		$texts[ $post_id ] = $post_content;
+	}
+
+	$pending = array();
+	$embedding_fatal = null;
+	$upsert_fatal = null;
+
+	if ( ! empty( $texts ) ) {
+		$embedded = a8csp_cws_get_embeddings_batch( $texts, array( 'max_retries' => $max_retries ) );
+		$embeddings = $embedded['embeddings'];
+		$embedding_errors = $embedded['errors'];
+		$embedding_pending = $embedded['pending'];
+		$embedding_fatal = $embedded['fatal'];
+
+		foreach ( $embedding_pending as $post_id ) {
+			$pending[ (int) $post_id ] = true;
+		}
+
+		$vectors = array();
+		foreach ( $posts as $post_id => $post ) {
+			if ( isset( $pending[ $post_id ] ) ) {
+				continue;
+			}
+			if ( isset( $embedding_errors[ $post_id ] ) ) {
+				$result['failed'][ $post_id ] = "Failed to generate embedding for '{$post->post_title}': " . $embedding_errors[ $post_id ]->get_error_message();
+				continue;
+			}
+			if ( empty( $embeddings[ $post_id ] ) || ! is_array( $embeddings[ $post_id ] ) ) {
+				$result['failed'][ $post_id ] = "Failed to generate embedding for '{$post->post_title}'";
+				continue;
+			}
+
+			try {
+				$metadata = a8csp_cws_build_post_vector_metadata( $post, $sync_fingerprint );
+			} catch ( Throwable $e ) {
+				$result['failed'][ $post_id ] = "Exception for '{$post->post_title}': " . $e->getMessage();
+				continue;
+			}
+
+			$vectors[] = array(
+				'id' => (string) $post_id,
+				'values' => $embeddings[ $post_id ],
+				'metadata' => $metadata,
+			);
+		}
+
+		if ( ! empty( $vectors ) ) {
+			$upsert = a8csp_cws_upsert_vectors_to_pinecone( $vectors, array( 'max_retries' => $max_retries ) );
+			$upserted = $upsert['upserted'];
+			$upsert_errors = $upsert['errors'];
+			$upsert_pending = $upsert['pending'];
+			$upsert_fatal = $upsert['fatal'];
+
+			$upserted_ids = array();
+			foreach ( $upserted as $vector_id ) {
+				$upserted_ids[ (int) $vector_id ] = true;
+			}
+			foreach ( $upsert_pending as $vector_id ) {
+				$pending[ (int) $vector_id ] = true;
+			}
+
+			$sync_date = current_time( 'mysql' );
+			foreach ( $vectors as $vector ) {
+				$post_id = (int) $vector['id'];
+				$title = $posts[ $post_id ]->post_title;
+
+				if ( isset( $upserted_ids[ $post_id ] ) ) {
+					// Record the destination so drift can be detected later.
+					update_post_meta( $post_id, '_pinecone_synced', 'synced' );
+					update_post_meta( $post_id, '_pinecone_sync_date', $sync_date );
+					update_post_meta( $post_id, '_pinecone_sync_fingerprint', $sync_fingerprint );
+					$result['synced'][] = $post_id;
+				} elseif ( isset( $pending[ $post_id ] ) ) {
+					continue;
+				} else {
+					$result['failed'][ $post_id ] = "Pinecone error for '{$title}': " . $upsert_errors[ $vector['id'] ]->get_error_message();
+				}
+			}
+		}
+	}
+
+	foreach ( $ids as $post_id ) {
+		if ( isset( $pending[ $post_id ] ) && ! isset( $result['failed'][ $post_id ] ) && ! in_array( $post_id, $result['synced'], true ) ) {
+			$result['pending'][] = $post_id;
+		}
+	}
+
+	if ( ! empty( $result['pending'] ) ) {
+		if ( is_wp_error( $embedding_fatal ) && is_wp_error( $upsert_fatal ) ) {
+			// A permanent failure must win, or a job would keep retrying something that cannot succeed.
+			$result['fatal'] = a8csp_cws_is_retryable_error( $embedding_fatal ) ? $upsert_fatal : $embedding_fatal;
+		} elseif ( is_wp_error( $embedding_fatal ) ) {
+			$result['fatal'] = $embedding_fatal;
+		} elseif ( is_wp_error( $upsert_fatal ) ) {
+			$result['fatal'] = $upsert_fatal;
+		} else {
+			$result['fatal'] = new WP_Error( 'a8csp_invalid_response', 'The sync stopped before all posts were processed.', array( 'status' => 0, 'provider' => '', 'retryable' => true ) );
+		}
+	}
+
+	return $result;
+}
+
 function a8csp_cws_bulk_sync_posts($post_ids) {
 	// Security: Limit batch size to prevent resource exhaustion
-	// TODO: Process as an asynchronous queue.
 	$max_batch_size = 50;
 	if ( count( $post_ids ) > $max_batch_size ) {
 		return array(
@@ -216,103 +462,33 @@ function a8csp_cws_bulk_sync_posts($post_ids) {
 		'successful_posts' => array(),
 		'errors' => array(),
 	);
-	
-	foreach ($post_ids as $post_id) {
-		// Security: Validate post ID and existence
-		$post_id = intval( $post_id );
-		if ( $post_id <= 0 ) {
-			$results['error_count']++;
-			$results['errors'][] = "Invalid post ID: {$post_id}";
-			continue;
-		}
-		$post = get_post($post_id);
-		
-		if (!$post) {
-			$results['error_count']++;
-			$results['errors'][] = "Post ID {$post_id} not found";
-			continue;
-		}
-		
-		try {
-			// Step 1: Get post content as plain text
-			$post_content = a8csp_cws_get_post_content_as_text($post);
-			
-			if (empty($post_content)) {
-				$results['error_count']++;
-				$results['errors'][] = "Post '{$post->post_title}' has empty content";
-				continue;
-			}
-			
-			// Step 2: Generate embedding via OpenAI
-			$embedding = a8csp_cws_vectorize_content($post_content);
-			
-			if (empty($embedding)) {
-				$results['error_count']++;
-				$results['errors'][] = "Failed to generate embedding for '{$post->post_title}'";
-				continue;
-			}
-			
-			$sync_fingerprint = a8csp_cws_current_sync_fingerprint();
 
-			// Step 3: Prepare metadata
-			$metadata = array(
-				'post_id' => (string)$post_id,
-				'post_title' => $post->post_title,
-				'post_url' => get_permalink($post_id),
-				'post_type' => $post->post_type,
-				'provider' => $sync_fingerprint['provider'],
-				'model' => $sync_fingerprint['embedding_model'],
-			);
-			
-			// Add categories
-			$categories = get_the_category($post_id);
-			if (!empty($categories)) {
-				$category_names = array();
-				$category_ids = array();
-				foreach ($categories as $category) {
-					$category_names[] = $category->name;
-					$category_ids[] = (string)$category->term_id;
-				}
-				$metadata['categories'] = implode(', ', $category_names);
-				$metadata['category_ids'] = implode(', ', $category_ids);
-			}
-			
-			// Add tags
-			$tags = get_the_tags($post_id);
-			if (!empty($tags)) {
-				$tag_names = array();
-				$tag_ids = array();
-				foreach ($tags as $tag) {
-					$tag_names[] = $tag->name;
-					$tag_ids[] = (string)$tag->term_id;
-				}
-				$metadata['tags'] = implode(', ', $tag_names);
-				$metadata['tag_ids'] = implode(', ', $tag_ids);
-			}
-			
-			// Step 4: Upsert to Pinecone
-			$result = a8csp_cws_upsert_to_pinecone($post_id, $embedding, $metadata);
-			
-			if (is_wp_error($result)) {
-				$results['error_count']++;
-				$results['errors'][] = "Pinecone error for '{$post->post_title}': " . $result->get_error_message();
-				continue;
-			}
-			
-			// Mark as synced — record the destination so we can detect drift later.
-			update_post_meta($post_id, '_pinecone_synced', 'synced');
-			update_post_meta($post_id, '_pinecone_sync_date', current_time('mysql'));
-			update_post_meta($post_id, '_pinecone_sync_fingerprint', $sync_fingerprint);
-			
-			$results['success_count']++;
-			$results['successful_posts'][] = $post_id;
-			
-		} catch (Exception $e) {
-			$results['error_count']++;
-			$results['errors'][] = "Exception for '{$post->post_title}': " . $e->getMessage();
-		}
+	try {
+		$sync = a8csp_cws_sync_posts( $post_ids );
+	} catch ( Throwable $e ) {
+		$results['error_count'] += count( $post_ids );
+		$results['errors'][] = 'Sync failed: ' . $e->getMessage();
+		return $results;
 	}
-	
+
+	$results['success_count'] = count( $sync['synced'] );
+	$results['successful_posts'] = $sync['synced'];
+
+	foreach ( $sync['failed'] as $message ) {
+		$results['error_count']++;
+		$results['errors'][] = $message;
+	}
+
+	if ( ! empty( $sync['pending'] ) ) {
+		$pending_count = count( $sync['pending'] );
+		$reason = is_wp_error( $sync['fatal'] ) ? $sync['fatal']->get_error_message() : 'The sync stopped early.';
+		if ( a8csp_cws_is_retryable_error( $sync['fatal'] ) ) {
+			$reason = rtrim( $reason, '. ' ) . '. Try again later, or use the background sync, which retries on its own.';
+		}
+		$results['error_count'] += $pending_count;
+		$results['errors'][] = sprintf( '%d post(s) were not synced: %s', $pending_count, $reason );
+	}
+
 	return $results;
 }
 
@@ -417,6 +593,7 @@ function a8csp_cws_sync_page() {
 		'post_type' => $post_type,
 		'posts_per_page' => 20,
 		'post_status' => 'publish', // Only public posts
+		'has_password' => false,
 		'paged' => $paged,
 		'no_found_rows' => false, // Need for pagination
 	);
@@ -471,6 +648,7 @@ function a8csp_cws_sync_page() {
 				<button type="submit" class="button">Filter</button>
 			</form>
 		</div>
+		<?php a8csp_cws_render_sync_job_panel( $post_type, $category, $tag, (int) $posts_query->found_posts ); ?>
 		<form method="post">
 			<?php 
 			// Security: Add nonce field for CSRF protection

@@ -74,3 +74,198 @@
 	padding-top: 15px;
 	border-top: 1px solid #ddd;
 }
+
+/* Background Sync Panel */
+.a8csp-sync-job {
+	margin-bottom: 20px;
+	padding: 16px 20px;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+/* .button and similar admin classes set display, which would otherwise override the hidden attribute. */
+.a8csp-sync-job [hidden] {
+	display: none !important;
+}
+
+.a8csp-sync-job-title {
+	margin: 0 0 12px;
+}
+
+.a8csp-sync-job .notice {
+	margin: 12px 0;
+}
+
+.a8csp-sync-job-missing {
+	margin: 0.5em 0 0.5em 2em;
+	list-style: disc;
+}
+
+.a8csp-sync-job-lead {
+	margin-top: 0;
+}
+
+.a8csp-sync-job-hint {
+	margin-bottom: 0;
+}
+
+.a8csp-sync-job-status {
+	margin-top: 16px;
+	padding-top: 16px;
+	border-top: 1px solid #dcdcde;
+}
+
+.a8csp-sync-job-status-heading {
+	margin: 0 0 8px;
+	font-size: 14px;
+}
+
+.a8csp-sync-job-status-heading:focus {
+	outline: none;
+}
+
+.a8csp-sync-job-status-line {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	margin: 0 0 12px;
+}
+
+.a8csp-sync-job .spinner {
+	float: none;
+	margin: 0;
+}
+
+.a8csp-sync-job .spinner:not(.is-active) {
+	display: none;
+}
+
+.a8csp-sync-job-badge {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 2px;
+	background: #f0f0f1;
+	color: #1d2327;
+	font-weight: 600;
+}
+
+.a8csp-sync-job-badge.is-queued,
+.a8csp-sync-job-badge.is-running {
+	background: #f0f6fc;
+	color: #0a4b78;
+}
+
+.a8csp-sync-job-badge.is-waiting {
+	background: #fcf9e8;
+	color: #614200;
+}
+
+.a8csp-sync-job-badge.is-completed {
+	background: #edfaef;
+	color: #005c12;
+}
+
+.a8csp-sync-job-badge.is-cancelled {
+	background: #f0f0f1;
+	color: #50575e;
+}
+
+.a8csp-sync-job-badge.is-failed {
+	background: #fcf0f1;
+	color: #8a2424;
+}
+
+.a8csp-sync-job-filters {
+	color: #646970;
+}
+
+.a8csp-sync-job-progress {
+	display: block;
+	box-sizing: border-box;
+	width: 100%;
+	height: 12px;
+	border: 0;
+	border-radius: 6px;
+	background: #f0f0f1;
+	color: var(--wp-admin-theme-color, #3858e9);
+	overflow: hidden;
+	-webkit-appearance: none;
+	appearance: none;
+}
+
+.a8csp-sync-job-progress::-webkit-progress-bar {
+	border-radius: 6px;
+	background: #f0f0f1;
+}
+
+.a8csp-sync-job-progress::-webkit-progress-value {
+	border-radius: 6px;
+	background: var(--wp-admin-theme-color, #3858e9);
+	transition: width 0.3s ease;
+}
+
+.a8csp-sync-job-progress::-moz-progress-bar {
+	border-radius: 6px;
+	background: var(--wp-admin-theme-color, #3858e9);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.a8csp-sync-job-progress::-webkit-progress-value {
+		transition: none;
+	}
+}
+
+.a8csp-sync-job-progress-text {
+	margin: 6px 0 12px;
+	color: #50575e;
+}
+
+.a8csp-sync-job-counts {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 24px;
+	margin: 0 0 12px;
+	padding: 0;
+	list-style: none;
+}
+
+.a8csp-sync-job-counts li {
+	margin: 0;
+}
+
+.a8csp-sync-job-meta {
+	margin: 0 0 12px;
+}
+
+.a8csp-sync-job-failures {
+	margin: 12px 0;
+}
+
+.a8csp-sync-job-failures summary {
+	cursor: pointer;
+	font-weight: 600;
+}
+
+.a8csp-sync-job-failure-list {
+	margin: 8px 0 0 2em;
+	list-style: disc;
+}
+
+.a8csp-sync-job-failure-list li {
+	margin-bottom: 4px;
+}
+
+.a8csp-sync-job-failure-message {
+	color: #50575e;
+}
+
+.a8csp-sync-job-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	margin: 12px 0 0;
+}
