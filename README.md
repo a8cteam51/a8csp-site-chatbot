@@ -119,7 +119,7 @@ After a successful sync, the plugin writes these post meta keys:
 - `_pinecone_sync_fingerprint`
 - `_pinecone_content_hash`
 
-The fingerprint records the provider, embedding model, Pinecone URL, and namespace used for the sync. The content hash covers the post title, slug, and raw content, so editing any of them after a sync marks the post stale. Posts synced before the hash was added have none and are not marked stale until they are synced again. The admin table marks content as:
+The fingerprint records the provider, embedding model, Pinecone URL, and namespace used for the sync. The content hash covers the post title, slug, and raw content, so editing any of them after a sync marks the post stale. Posts synced before the hash was added have none and are not marked stale until they are synced again. Changes made outside the post itself are not detected, such as editing a synced pattern or reusable block the post includes, or renaming a parent page's slug; resync affected posts manually. The admin table marks content as:
 
 - **In Pinecone** - current settings match the stored sync fingerprint.
 - **Stale - re-sync needed** - the post was synced with different provider, model, index, or namespace settings, or its title, slug, or content changed since the last sync.
