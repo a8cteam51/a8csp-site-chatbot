@@ -304,8 +304,10 @@ function a8csp_cws_get_client_ip() {
 	$ip = isset( $_SERVER['REMOTE_ADDR'] ) ? (string) $_SERVER['REMOTE_ADDR'] : '';
 
 	if ( defined( 'A8CSP_CWS_CLIENT_IP_HEADER' ) && ! empty( $_SERVER[ A8CSP_CWS_CLIENT_IP_HEADER ] ) ) {
-		// The first address in X-Forwarded-For style lists is the original client.
-		$forwarded = trim( explode( ',', (string) $_SERVER[ A8CSP_CWS_CLIENT_IP_HEADER ] )[0] );
+		// Proxies append to the right; everything left of the trusted hops is client-supplied and spoofable.
+		$hops = defined( 'A8CSP_CWS_CLIENT_IP_TRUSTED_HOPS' ) ? max( 1, (int) A8CSP_CWS_CLIENT_IP_TRUSTED_HOPS ) : 1;
+		$entries = array_map( 'trim', explode( ',', (string) $_SERVER[ A8CSP_CWS_CLIENT_IP_HEADER ] ) );
+		$forwarded = count( $entries ) >= $hops ? $entries[ count( $entries ) - $hops ] : '';
 		if ( filter_var( $forwarded, FILTER_VALIDATE_IP ) ) {
 			$ip = $forwarded;
 		}
@@ -340,9 +342,9 @@ function a8csp_cws_get_site_message_count() {
 }
 
 /**
- * Count one message for today and return the new total. Done in SQL so concurrent requests can't lose increments.
+ * Count one message for today unless the cap is reached; the conditional UPDATE keeps concurrent requests from overshooting.
  */
-function a8csp_cws_increment_site_message_count() {
+function a8csp_cws_claim_site_message( $limit ) {
 	global $wpdb;
 
 	$option = a8csp_cws_site_message_count_option();
@@ -350,11 +352,10 @@ function a8csp_cws_increment_site_message_count() {
 
 	if ( $inserted ) {
 		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s AND option_name <> %s", $wpdb->esc_like( 'a8csp_cws_chat_count_' ) . '%', $option ) );
-	} else {
-		$wpdb->query( $wpdb->prepare( "UPDATE {$wpdb->options} SET option_value = option_value + 1 WHERE option_name = %s", $option ) );
+		return true;
 	}
 
-	return a8csp_cws_get_site_message_count();
+	return (bool) $wpdb->query( $wpdb->prepare( "UPDATE {$wpdb->options} SET option_value = option_value + 1 WHERE option_name = %s AND CAST(option_value AS UNSIGNED) < %d", $option, $limit ) );
 }
 
 /**
@@ -363,17 +364,18 @@ function a8csp_cws_increment_site_message_count() {
 function a8csp_cws_check_daily_limits() {
 	$limits = a8csp_cws_get_daily_limits();
 
-	if ( $limits['ip'] > 0 ) {
-		$ip_key = 'a8csp_cws_chat_ip_' . md5( a8csp_cws_get_client_ip() . '|' . wp_date( 'Ymd' ) );
-		$ip_count = (int) get_transient( $ip_key );
-		if ( $ip_count >= $limits['ip'] ) {
-			return 'You have reached today\'s limit for questions. Please come back tomorrow.';
-		}
-		set_transient( $ip_key, $ip_count + 1, DAY_IN_SECONDS );
+	$ip_key = 'a8csp_cws_chat_ip_' . md5( a8csp_cws_get_client_ip() . '|' . wp_date( 'Ymd' ) );
+	$ip_count = (int) get_transient( $ip_key );
+	if ( $limits['ip'] > 0 && $ip_count >= $limits['ip'] ) {
+		return 'You have reached today\'s limit for questions. Please come back tomorrow.';
 	}
 
-	if ( $limits['site'] > 0 && a8csp_cws_increment_site_message_count() > $limits['site'] ) {
+	if ( $limits['site'] > 0 && ! a8csp_cws_claim_site_message( $limits['site'] ) ) {
 		return 'The assistant has answered all the questions it can for today. Please come back tomorrow.';
+	}
+
+	if ( $limits['ip'] > 0 ) {
+		set_transient( $ip_key, $ip_count + 1, DAY_IN_SECONDS );
 	}
 
 	return '';

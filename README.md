@@ -252,7 +252,7 @@ The chat endpoint is public, so every message spends the site's AI credits. Each
 
 - **7 per minute per IP** - `a8csp_cws_bot_response_<hash>` transients.
 - **Daily per IP** - **Daily Message Limit per Visitor** under **51 Chatbot > Settings**, default 50. Stored in `a8csp_cws_chat_ip_<hash>` transients.
-- **Daily for the whole site** - **Daily Message Limit (Whole Site)**, default 500. This is the hard cap on AI spend, since it also holds against many IPs. The count is kept in the `a8csp_cws_chat_count_<Ymd>` option, incremented in SQL so concurrent requests are all counted, and older days are deleted on the first message of a new day. The settings screen shows today's count.
+- **Daily for the whole site** - **Daily Message Limit (Whole Site)**, default 500. This is the hard cap on AI spend, since it also holds against many IPs. The count is kept in the `a8csp_cws_chat_count_<Ymd>` option, incremented with a conditional SQL update so concurrent requests can't push it past the cap, and older days are deleted on the first message of a new day. The settings screen shows today's count.
 
 Days follow the site timezone, and `0` turns a daily limit off. A visitor over a limit gets a short "come back tomorrow" reply. Nonce refreshes are limited to one per minute per IP with `a8csp_nonce_refresh_<hash>` transients.
 
@@ -262,7 +262,7 @@ The IP is `REMOTE_ADDR`. Forwarded-IP headers are not trusted by default, becaus
 define( 'A8CSP_CWS_CLIENT_IP_HEADER', 'HTTP_X_FORWARDED_FOR' );
 ```
 
-The first address in the header is used. The `a8csp_cws_client_ip` filter can override the result.
+The plugin uses the rightmost address in the header, which is the one your proxy added. Addresses to its left are sent by the client and can be faked. If more than one proxy sits in front of the site (for example a CDN and then a load balancer), set how many entries from the right to skip past with `A8CSP_CWS_CLIENT_IP_TRUSTED_HOPS` (default `1`). An invalid address falls back to `REMOTE_ADDR`. The `a8csp_cws_client_ip` filter can override the result.
 
 ## Retrieval and Responses
 
