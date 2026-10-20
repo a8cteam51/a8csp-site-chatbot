@@ -271,6 +271,16 @@ function a8csp_cws_validate_options($input) {
 		}
 	}
 
+	foreach ( array( 'recommendation_links', 'flight_links' ) as $checkbox_field ) {
+		if ( ! empty( $input[ $checkbox_field ] ) ) {
+			$validated[ $checkbox_field ] = '1';
+		}
+	}
+
+	if ( isset( $input['link_tracking_label'] ) ) {
+		$validated['link_tracking_label'] = a8csp_cws_sanitize_tracking_label( $input['link_tracking_label'] );
+	}
+
 	return $validated;
 }
 
@@ -356,6 +366,31 @@ function a8csp_cws_register_settings() {
 		'chat_with_site_settings',
 		'ai_chat_section'
 	);
+
+	add_settings_field(
+		'recommendation_links',
+		'Recommendations Beyond Your Content',
+		'a8csp_cws_recommendation_links_callback',
+		'chat_with_site_settings',
+		'ai_chat_section'
+	);
+
+	add_settings_field(
+		'flight_links',
+		'Flight Search Links',
+		'a8csp_cws_flight_links_callback',
+		'chat_with_site_settings',
+		'ai_chat_section'
+	);
+
+	add_settings_field(
+		'link_tracking_label',
+		'Link Tracking Label',
+		'a8csp_cws_link_tracking_label_callback',
+		'chat_with_site_settings',
+		'ai_chat_section',
+		array( 'label_for' => 'link_tracking_label' )
+	);
 	
 	// Pinecone Settings
 	add_settings_field(
@@ -435,6 +470,27 @@ function a8csp_cws_daily_message_limit_per_ip_callback() {
 	echo '<input type="number" id="daily_message_limit_per_ip" name="a8csp_chat_with_site_options[daily_message_limit_per_ip]" value="' . esc_attr( $limits['ip'] ) . '" min="0" step="1" class="small-text">';
 	echo '<p class="description">Chat messages per day from one IP address, on top of the limit of 7 per minute. 0 means no limit.</p>';
 	echo '<p class="description">Your IP as the chatbot sees it: <code>' . esc_html( a8csp_cws_get_client_ip() ) . '</code>. If this isn\'t your real IP, the site is behind a proxy and every visitor shares one limit; set the <code>A8CSP_CWS_CLIENT_IP_HEADER</code> constant to the header holding the visitor IP (for example <code>HTTP_X_FORWARDED_FOR</code>).</p>';
+}
+
+function a8csp_cws_recommendation_links_callback() {
+	$link_settings = a8csp_cws_get_link_settings();
+
+	echo '<label for="recommendation_links"><input type="checkbox" id="recommendation_links" name="a8csp_chat_with_site_options[recommendation_links]" value="1"' . checked( $link_settings['recommendations'], true, false ) . '> Recommend hotels, restaurants, cruises and other places that aren\'t in your articles</label>';
+	echo '<p class="description">The chatbot follows the taste of your articles and links each place it recommends to its official website. Those links are checked before the answer is shown, and removed if the page doesn\'t load.</p>';
+}
+
+function a8csp_cws_flight_links_callback() {
+	$link_settings = a8csp_cws_get_link_settings();
+
+	echo '<label for="flight_links"><input type="checkbox" id="flight_links" name="a8csp_chat_with_site_options[flight_links]" value="1"' . checked( $link_settings['flight_links'], true, false ) . '> Add flight search links to answers</label>';
+	echo '<p class="description">When a visitor gives a route and travel dates, the answer can link to a prefilled Expedia flight search.</p>';
+}
+
+function a8csp_cws_link_tracking_label_callback() {
+	$link_settings = a8csp_cws_get_link_settings();
+
+	echo '<input type="text" id="link_tracking_label" name="a8csp_chat_with_site_options[link_tracking_label]" value="' . esc_attr( $link_settings['tracking_label'] ) . '" maxlength="50" size="30" autocomplete="off" spellcheck="false" />';
+	echo '<p class="description">Skimlinks Custom ID (xcust) added to links to other websites in answers, so chatbot clicks can be reported on their own. Letters, numbers, hyphens and underscores only, up to 50 characters. Leave empty to add no label.</p>';
 }
 
 function a8csp_cws_get_api_settings() {

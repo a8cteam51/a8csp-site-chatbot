@@ -14,6 +14,7 @@ The plugin is registered in WordPress as **51 Site Chatbot**. It adds a **51 Cha
 - `includes/sync-jobs.php` - the background sync job engine: job state, Action Scheduler batches, locking, retries, cancel, and retry of failed posts.
 - `includes/sync-jobs-admin.php` - the **Background sync** panel on the Content Library page, its admin AJAX handlers, and its script loading.
 - `includes/cli.php` - the `wp site-chatbot` WP-CLI command, loaded only when WP-CLI is running.
+- `includes/answer-links.php` - the link policy for chat answers: article link extraction, external link verification, flight search links, and the Skimlinks tracking label.
 - `includes/chat-core.php` - chat history validation, retrieval context assembly, prompt construction, response limiting, and frontend rate limiting.
 - `includes/block.php` - block registration, server render callback, frontend script/style registration, and AJAX handlers.
 - `blocks/site-chatbot/` - block metadata, editor JavaScript, frontend JavaScript, and frontend styles.
@@ -53,7 +54,7 @@ Activate **51 Site Chatbot** from the WordPress plugins screen and configure it 
 
 The plugin stores settings in the `a8csp_chat_with_site_options` option. The settings screen has three groups:
 
-- **Chatbot Configuration** - optional custom prompt text used with the default system instructions.
+- **Chatbot Configuration** - optional custom prompt text used with the default system instructions, daily message limits, and the answer link settings described under [Links in Answers](#links-in-answers).
 - **AI Service** - provider selection and provider-specific API/model fields.
 - **Vector Database** - Pinecone API key, Pinecone server URL, and optional Pinecone namespace.
 
@@ -271,12 +272,73 @@ For each visitor message, the plugin:
 1. Sanitizes and bounds the message and chat history.
 2. Creates an embedding with the configured provider.
 3. Queries Pinecone for up to five matches.
-4. Loads up to three matching published posts from WordPress.
-5. Builds a context-limited system message.
+4. Loads up to three matching published posts from WordPress, with up to 8 links to other websites from each. A post's links only use what is left of its third of the context, so they never push the next post out.
+5. Builds a context-limited system message: a prompt of up to 4,000 characters and up to 6,000 characters of context.
 6. Sends the chat completion request to the configured provider.
-7. Converts the Markdown response to safe HTML with Parsedown.
+7. Turns flight markers into flight search links, then converts the Markdown response to safe HTML with Parsedown.
+8. Checks every link in the answer, as described under [Links in Answers](#links-in-answers).
 
 Provider requests retry HTTP 429 and 503 responses with bounded backoff. Completion responses are capped at 500 output tokens where the provider API supports that option, and rendered responses are truncated if they exceed the plugin's response limit.
+
+## Links in Answers
+
+Every link in a chat answer is checked on the server before the answer is shown. A link that fails the checks is removed, and its text stays in the answer.
+
+- **Links to this site** are kept when they point to an article used as context, a published post of a public post type, or the home page.
+- **Links to other websites** are kept when they appear in a context article, and point to the address as the article spells it. For each article, the plugin gives the model up to 8 external links from its raw content, with their link text, leaving out social profile and share links (Instagram, Facebook, X and Twitter, Pinterest, TikTok, LinkedIn, Threads). Links the visitor can't see are left out too: links in HTML comments, inside membership shortcodes such as `[mepr-show]` or `[pmpro_member]` (the list is filterable with `a8csp_cws_gated_shortcodes`), and, with Jetpack Memberships, past a paywall the visitor has no access to. Links inside other shortcodes, such as `[caption]` or page builder blocks, are kept.
+- **Email and phone links** (`mailto:` and `tel:`) are kept.
+- Root-relative links (`/path`) are treated as links to this site and follow the rule above. Any other link is removed, such as another relative or protocol-relative URL (`page/`, `?p=1`, `//example.com`) or a `javascript:` or `data:` URL.
+
+Kept links open in a new tab, and links to other websites get `rel="noopener nofollow"`. The prompt tells the model to use only URLs from the context and never to guess one; these checks catch the links it guesses anyway.
+
+### Recommendations Beyond Your Content
+
+With **Recommendations Beyond Your Content** checked under **51 Chatbot > Settings**, the prompt tells the model to use the context articles as its main source and as a guide to the site's taste and point of view. It may also recommend specific hotels, restaurants, cruises, and other places from its own knowledge, linking each one to its official website. The setting is off by default.
+
+Those links are not in the context, so each one is verified before the answer is shown:
+
+1. A `HEAD` request with a 4 second timeout, following up to 3 redirects. A 2xx response verifies the link.
+2. If `HEAD` returns 400, 403, 405, 429, 501, or 503, which many sites send to bots or to `HEAD` requests, or fails with an error other than a DNS or connection failure, the first 4 KB are fetched with `GET` instead.
+3. If the page still does not load or times out, and the URL has a path, the site's home page is checked the same way. When it loads, the link points to the home page instead: the place's own website still works even if the deep link was wrong. This step is skipped for social networks and for sites shared by many places, such as Google Maps, Apple Maps, Tripadvisor, Yelp, Booking.com, Expedia, Airbnb, OpenTable, TheFork, the Michelin Guide, and large hotel chains, because their home page says nothing about the place. The `a8csp_cws_link_root_fallback` filter can change that.
+4. Otherwise the link is removed.
+
+A verified link keeps the URL the model wrote, not the redirect target, which may be localized for the server's location. Only `http` and `https` URLs on ports 80 and 443 are checked, through `wp_safe_remote_head()` and `wp_safe_remote_get()`. The plugin follows redirects itself: before each request it resolves the host, refuses the URL if any of its IPv4 addresses is local, private, or reserved, and makes cURL connect to the address it checked, so a DNS answer that changes between the check and the request can't reach an internal address. When WordPress sends requests through a proxy (`WP_PROXY_HOST`), the proxy resolves the host itself and this pinning doesn't apply. Checks need the PHP cURL extension, and sites reachable only over IPv6 can't be verified; those links are removed.
+
+Results are cached in `a8csp_cws_link_<hash>` transients, for 1 day when the link loads and 6 hours when it does not. A cached result is shared by spellings of the same address with and without `www.` or a trailing slash: a link to a spelling that was verified then points to the spelling that was checked, and a failure only counts for the exact spelling that failed. One answer checks at most 8 uncached links with at most 24 requests, within about 10 seconds: each request's timeout is cut to the time left. Links beyond that are removed for this answer and not cached. With the setting off, links to other websites that are not in the context are removed without any request.
+
+### Flight Search Links
+
+With **Flight Search Links** checked, the prompt gives the model today's date and a flight marker it can add when it knows the route and travel dates:
+
+```text
+[Search flights from New York to Lisbon](flight:JFK-LIS/2027-05-12/2027-05-19/2)
+```
+
+The marker is `ORIGIN-DESTINATION/DEPART[/RETURN][/ADULTS]`: two different 3-letter IATA airport or city codes, dates as `YYYY-MM-DD`, and 1-6 adults (default 1). A one-way trip leaves out the return date. Before the Markdown is converted, the plugin replaces the marker with an Expedia flight search:
+
+```text
+https://www.expedia.com/go/flight/search/roundtrip/2027-05-12/2027-05-19?FromAirport=JFK&ToAirport=LIS&NumAdult=2
+```
+
+One-way searches use `oneway` and repeat the departure date, because Expedia needs both date segments. Dates must be between today, in the site timezone, and 330 days ahead; Expedia shows no results for later dates. A marker that is invalid, or any marker while the setting is off, is replaced with its link text.
+
+### Link Tracking Label
+
+**Link Tracking Label** adds a `data-skimlinks-tracking` attribute with the label to every link to another website in an answer, flight searches included. Skimlinks sends it as the Custom ID (`xcust`), so clicks from the chatbot can be reported on their own. The Skimlinks script must already be on the site; the plugin does not load it. The label may contain letters, numbers, hyphens, and underscores, up to 50 characters. It is empty by default, which adds no attribute. `rel="nofollow"` and `target="_blank"` do not stop Skimlinks from affiliating a link.
+
+### Why Not Google Search Grounding
+
+Gemini's Google Search grounding is deliberately not used. Its terms forbid modifying grounded answers and adding link tracking or redirects to their links, and this plugin does both: it removes links that fail the checks and adds the tracking label. The model recommends from its own knowledge instead, and the plugin verifies every link.
+
+### Link Filters
+
+| Filter | Arguments | Description |
+| --- | --- | --- |
+| `a8csp_cws_flight_search_url` | `$url`, `$args` | The Expedia URL built from a flight marker. `$args` has `origin`, `destination`, `depart`, `return` (`''` for one-way), and `adults`. Return another `http` or `https` URL to use a different booking site, or `''` to show the link text only. |
+| `a8csp_cws_link_check_user_agent` | `$user_agent`, `$url` | The `User-Agent` header sent when verifying a link. Default `Mozilla/5.0 (compatible; A8CSP-Site-Chatbot/<version>; +<home URL>)`. |
+| `a8csp_cws_link_root_fallback` | `$allowed`, `$url` | Whether a recommended link that fails can fall back to its site's home page. Default `false` for social networks and shared platforms such as maps, review, booking, and hotel chain sites, `true` otherwise. |
+| `a8csp_cws_gated_shortcodes` | `$tags` | Shortcode tags whose content is hidden from some visitors, so links inside them are not given to the model. |
+| `a8csp_cws_answer_html` | `$html`, `$settings` | The answer HTML after the link checks, with the link settings from `a8csp_cws_get_link_settings()`. |
 
 ## Development Notes
 
@@ -306,6 +368,7 @@ GitHub releases trigger `.github/workflows/build-release.yml`. The workflow:
 - **The chat cannot answer a topic** - confirm the relevant published content is synced and not stale.
 - **Provider requests fail with HTTP 429 or 503** - the plugin retries those responses, and background sync waits and retries on its own. On tight provider limits, lower the `a8csp_cws_sync_batch_size` filter, add an `a8csp_cws_sync_batch_delay`, or use `--batch-size` with WP-CLI.
 - **A sync keeps hitting the rate limit on the same batch** - one embedding request probably needs more tokens than the key's per-minute limit allows, which is common on free tiers. Lower `max_chars` with the `a8csp_cws_embedding_batch_limits` filter, or lower `a8csp_cws_sync_batch_size`.
+- **A link is missing from a chat answer, but its text is there** - the link failed the checks described under [Links in Answers](#links-in-answers). Links to other websites that are not in a context article are only kept, after a check, when **Recommendations Beyond Your Content** is on.
 - **Settings warnings appear** - fill in all required Pinecone fields and the required fields for the selected provider.
 - **Background sync is unavailable** - Action Scheduler is not loaded. Run `composer install` in the plugin folder.
 - **A background sync stays queued or moves slowly** - the site is probably getting little traffic. Keep the Content Library page open, run `wp action-scheduler run --hooks=a8csp_cws_sync_job_batch`, or add the server cron job described under [Low-Traffic Sites](#low-traffic-sites).

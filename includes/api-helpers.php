@@ -1219,15 +1219,26 @@ function a8csp_cws_get_completion($messages) {
 		}
 
 		$role = sanitize_text_field( $message['role'] );
-		$content = sanitize_textarea_field( $message['content'] );
 
 		if ( ! in_array( $role, [ 'system', 'user', 'assistant' ], true ) ) {
 			error_log('A8CSP: Invalid message role in completion');
 			continue;
 		}
 
-		if ( strlen( $content ) > 4000 ) {
-			$content = substr( $content, 0, 4000 );
+		// The system message is built from sanitized parts, and sanitize_textarea_field() would strip the %XX octets from its URLs.
+		if ( 'system' === $role ) {
+			$content = '';
+			if ( is_string( $message['content'] ) ) {
+				// Before WP 6.9, wp_check_invalid_utf8() returns '' for invalid input even when asked to strip.
+				$content = function_exists( 'mb_scrub' ) ? mb_scrub( $message['content'], 'UTF-8' ) : (string) wp_check_invalid_utf8( $message['content'], true );
+			}
+		} else {
+			$content = sanitize_textarea_field( $message['content'] );
+		}
+
+		$max_length = ( 'system' === $role ) ? 12000 : 4000;
+		if ( strlen( $content ) > $max_length ) {
+			$content = substr( $content, 0, $max_length );
 		}
 
 		$validated_messages[] = [
