@@ -273,7 +273,7 @@ For each visitor message, the plugin:
 2. Creates an embedding with the configured provider.
 3. Queries Pinecone for up to five matches.
 4. Loads up to three matching published posts from WordPress, with up to 8 links to other websites from each. A post's links only use what is left of its third of the context, so they never push the next post out.
-5. Builds a context-limited system message: a prompt of up to 4,000 characters and up to 6,000 characters of context.
+5. Builds a context-limited system message: a prompt of up to 4,500 characters and up to 6,000 characters of context, 10,000 characters in total.
 6. Sends the chat completion request to the configured provider.
 7. Turns flight markers into flight search links, then converts the Markdown response to safe HTML with Parsedown.
 8. Checks every link in the answer, as described under [Links in Answers](#links-in-answers).
@@ -287,13 +287,13 @@ Every link in a chat answer is checked on the server before the answer is shown.
 - **Links to this site** are kept when they point to an article used as context, a published post of a public post type, or the home page.
 - **Links to other websites** are kept when they appear in a context article, and point to the address as the article spells it. For each article, the plugin gives the model up to 8 external links from its raw content, with their link text, leaving out social profile and share links (Instagram, Facebook, X and Twitter, Pinterest, TikTok, LinkedIn, Threads). Links the visitor can't see are left out too: links in HTML comments, inside membership shortcodes such as `[mepr-show]` or `[pmpro_member]` (the list is filterable with `a8csp_cws_gated_shortcodes`), and, with Jetpack Memberships, past a paywall the visitor has no access to. Links inside other shortcodes, such as `[caption]` or page builder blocks, are kept.
 - **Email and phone links** (`mailto:` and `tel:`) are kept.
-- Root-relative links (`/path`) are treated as links to this site and follow the rule above. Any other link is removed, such as another relative or protocol-relative URL (`page/`, `?p=1`, `//example.com`) or a `javascript:` or `data:` URL.
+- Root-relative links (`/path`) are treated as links to this site and follow the rule above. A link that starts with a domain name but has no scheme (`example.com/page`) is read as `https://example.com/page`. Any other link is removed, such as another relative or protocol-relative URL (`page/`, `?p=1`, `//example.com`) or a `javascript:` or `data:` URL.
 
 Kept links open in a new tab, and links to other websites get `rel="noopener nofollow"`. The prompt tells the model to use only URLs from the context and never to guess one; these checks catch the links it guesses anyway.
 
 ### Recommendations Beyond Your Content
 
-With **Recommendations Beyond Your Content** checked under **51 Chatbot > Settings**, the prompt tells the model to use the context articles as its main source and as a guide to the site's taste and point of view. It may also recommend specific hotels, restaurants, cruises, and other places from its own knowledge, linking each one to its official website. The setting is off by default.
+With **Recommendations Beyond Your Content** checked under **51 Chatbot > Settings**, the prompt tells the model to use the context articles as its main source and as a guide to the site's taste and point of view. It may also recommend specific hotels, restaurants, cruises, and other places from its own knowledge. The prompt asks it to link the name of every place it mentions: to the place's link in a context article when there is one, otherwise to its official website. The setting is off by default.
 
 Those links are not in the context, so each one is verified before the answer is shown:
 
@@ -308,7 +308,7 @@ Results are cached in `a8csp_cws_link_<hash>` transients, for 1 day when the lin
 
 ### Flight Search Links
 
-With **Flight Search Links** checked, the prompt gives the model today's date and a flight marker it can add when it knows the route and travel dates:
+With **Flight Search Links** checked, the prompt gives the model today's date and a flight marker it can add only when the visitor has given the route and travel dates, without reusing the example's values:
 
 ```text
 [Search flights from New York to Lisbon](flight:JFK-LIS/2027-05-12/2027-05-19/2)
