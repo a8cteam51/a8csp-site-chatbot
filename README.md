@@ -326,6 +326,16 @@ One-way searches use `oneway` and repeat the departure date, because Expedia nee
 
 **Link Tracking Label** adds a `data-skimlinks-tracking` attribute with the label to every link to another website in an answer, flight searches included. Skimlinks sends it as the Custom ID (`xcust`), so clicks from the chatbot can be reported on their own. The Skimlinks script must already be on the site; the plugin does not load it. The label may contain letters, numbers, hyphens, and underscores, up to 50 characters. It is empty by default, which adds no attribute. `rel="nofollow"` and `target="_blank"` do not stop Skimlinks from affiliating a link.
 
+### Skimlinks Site ID
+
+The Skimlinks script looks up the merchants of the links on a page when the page loads. Links the chat adds later are never looked up, so the script leaves them alone and they earn nothing. With **Skimlinks Site ID** set (Publisher Hub, Settings, Sites; it looks like `12345X678901`), every link to another website in an answer, flight searches included, is written as a Skimlinks link wrapper URL instead:
+
+```text
+https://go.skimresources.com/?id=12345X678901&url=<encoded link>&xcust=<link tracking label>
+```
+
+Skimlinks then affiliates the click when the merchant is in the site's program and forwards it unchanged otherwise. The link checks still run against the original URL. When a site ID is set, the label goes into `xcust` and no `data-skimlinks-tracking` attribute is added. The field is empty by default, which links directly.
+
 ### Why Not Google Search Grounding
 
 Gemini's Google Search grounding is deliberately not used. Its terms forbid modifying grounded answers and adding link tracking or redirects to their links, and this plugin does both: it removes links that fail the checks and adds the tracking label. The model recommends from its own knowledge instead, and the plugin verifies every link.

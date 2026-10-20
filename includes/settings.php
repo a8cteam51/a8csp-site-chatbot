@@ -281,6 +281,13 @@ function a8csp_cws_validate_options($input) {
 		$validated['link_tracking_label'] = a8csp_cws_sanitize_tracking_label( $input['link_tracking_label'] );
 	}
 
+	if ( isset( $input['skimlinks_site_id'] ) ) {
+		$validated['skimlinks_site_id'] = a8csp_cws_sanitize_skimlinks_site_id( $input['skimlinks_site_id'] );
+		if ( '' === $validated['skimlinks_site_id'] && '' !== trim( (string) $input['skimlinks_site_id'] ) ) {
+			add_settings_error( 'a8csp_chat_with_site_options', 'invalid_skimlinks_site_id', 'The Skimlinks site ID should look like 12345X678901.' );
+		}
+	}
+
 	return $validated;
 }
 
@@ -390,6 +397,15 @@ function a8csp_cws_register_settings() {
 		'chat_with_site_settings',
 		'ai_chat_section',
 		array( 'label_for' => 'link_tracking_label' )
+	);
+
+	add_settings_field(
+		'skimlinks_site_id',
+		'Skimlinks Site ID',
+		'a8csp_cws_skimlinks_site_id_callback',
+		'chat_with_site_settings',
+		'ai_chat_section',
+		array( 'label_for' => 'skimlinks_site_id' )
 	);
 	
 	// Pinecone Settings
@@ -514,4 +530,11 @@ function a8csp_cws_get_api_settings() {
 	}
 
 	return $settings;
+}
+
+function a8csp_cws_skimlinks_site_id_callback() {
+	$link_settings = a8csp_cws_get_link_settings();
+
+	echo '<input type="text" id="skimlinks_site_id" name="a8csp_chat_with_site_options[skimlinks_site_id]" value="' . esc_attr( $link_settings['skimlinks_id'] ) . '" maxlength="25" size="20" autocomplete="off" spellcheck="false" placeholder="12345X678901" />';
+	echo '<p class="description">Your Skimlinks site ID (Publisher Hub, Settings, Sites). When set, links to other websites in answers go through Skimlinks\' link wrapper (go.skimresources.com) with the link tracking label as the Custom ID. This is needed because the Skimlinks script only affiliates links that are on the page when it loads, not links added later by the chat. Merchants without an affiliate program are forwarded unchanged. Leave empty to link directly.</p>';
 }
