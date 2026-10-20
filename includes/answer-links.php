@@ -655,7 +655,7 @@ function a8csp_cws_resolve_link_url( $href ) {
  * Whether an href is a domain name without a scheme ("example.com/page"), which models sometimes write.
  */
 function a8csp_cws_is_schemeless_web_link( $href ) {
-	return (bool) preg_match( '#^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}(?:[/?\#]|$)#i', (string) $href );
+	return (bool) preg_match( '#^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?!(?:html?|php|aspx?|jsp|pdf)(?:[/?\#]|$))[a-z]{2,63}(?:[/?\#]|$)#i', (string) $href );
 }
 
 function a8csp_cws_is_public_post_url( $url ) {
