@@ -21,7 +21,21 @@ function a8csp_cws_get_link_settings() {
 		'recommendations' => ! empty( $options['recommendation_links'] ),
 		'flight_links'    => ! empty( $options['flight_links'] ),
 		'tracking_label'  => a8csp_cws_sanitize_tracking_label( $options['link_tracking_label'] ?? '' ),
+		'skimlinks_id'    => a8csp_cws_sanitize_skimlinks_site_id( $options['skimlinks_site_id'] ?? '' ),
 	);
+}
+
+/**
+ * Skimlinks site IDs look like 12345X678901; anything else is dropped.
+ */
+function a8csp_cws_sanitize_skimlinks_site_id( $site_id ) {
+	if ( ! is_scalar( $site_id ) ) {
+		return '';
+	}
+
+	$site_id = strtoupper( trim( (string) $site_id ) );
+
+	return preg_match( '/^\d{1,12}X\d{1,12}$/', $site_id ) ? $site_id : '';
 }
 
 /**
@@ -701,9 +715,17 @@ function a8csp_cws_apply_link_rule( $attributes, $inner, array $allowed, array $
 	}
 
 	$label = a8csp_cws_sanitize_tracking_label( $settings['tracking_label'] ?? '' );
-	$tracking = '' !== $label ? ' data-skimlinks-tracking="' . esc_attr( $label ) . '"' : '';
+	$site_id = a8csp_cws_sanitize_skimlinks_site_id( $settings['skimlinks_id'] ?? '' );
+	if ( '' !== $site_id ) {
+		// The Skimlinks script only affiliates links present when the page loads, so answer links use its link wrapper.
+		$href = 'https://go.skimresources.com/?id=' . rawurlencode( $site_id ) . '&url=' . rawurlencode( $final ) . ( '' !== $label ? '&xcust=' . rawurlencode( $label ) : '' );
+		$tracking = '';
+	} else {
+		$href = $final;
+		$tracking = '' !== $label ? ' data-skimlinks-tracking="' . esc_attr( $label ) . '"' : '';
+	}
 
-	return '<a href="' . esc_url( $final ) . '" target="_blank" rel="noopener nofollow"' . $tracking . '>' . $inner . '</a>';
+	return '<a href="' . esc_url( $href ) . '" target="_blank" rel="noopener nofollow"' . $tracking . '>' . $inner . '</a>';
 }
 
 /**
