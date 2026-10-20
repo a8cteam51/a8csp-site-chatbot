@@ -329,7 +329,9 @@ function a8csp_cws_truncate_utf8( $text, $max_bytes ) {
 		return mb_strcut( $text, 0, $max_bytes, 'UTF-8' );
 	}
 
-	return (string) preg_replace( '/[\xC0-\xFF][\x80-\xBF]*$/', '', substr( $text, 0, $max_bytes ) );
+	$cut = substr( $text, 0, $max_bytes );
+
+	return preg_match( '//u', $cut ) ? $cut : (string) preg_replace( '/[\xC0-\xFF][\x80-\xBF]*$/', '', $cut );
 }
 
 /**

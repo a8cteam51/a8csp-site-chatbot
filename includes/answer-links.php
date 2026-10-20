@@ -405,11 +405,11 @@ function a8csp_cws_can_pin_requests( $scheme ) {
  */
 function a8csp_cws_resolve_link_target( $url ) {
 	$url = a8csp_cws_to_ascii_url( a8csp_cws_sanitize_http_url( $url ) );
-	if ( '' === $url || ! wp_http_validate_url( $url ) ) {
+	$parts = '' === $url ? false : wp_parse_url( $url );
+	if ( empty( $parts['scheme'] ) || empty( $parts['host'] ) ) {
 		return null;
 	}
 
-	$parts = wp_parse_url( $url );
 	$scheme = strtolower( $parts['scheme'] );
 	$host = strtolower( $parts['host'] );
 	$port = isset( $parts['port'] ) ? (int) $parts['port'] : ( 'https' === $scheme ? 443 : 80 );
@@ -417,8 +417,9 @@ function a8csp_cws_resolve_link_target( $url ) {
 		return null;
 	}
 
+	// Resolve before wp_http_validate_url(), whose own lookup then hits the resolver cache, so a dead domain blocks only once.
 	$ips = filter_var( $host, FILTER_VALIDATE_IP ) ? array( $host ) : gethostbynamel( $host );
-	if ( empty( $ips ) ) {
+	if ( empty( $ips ) || ! wp_http_validate_url( $url ) ) {
 		return null;
 	}
 
@@ -467,6 +468,7 @@ function a8csp_cws_fetch_link( $method, $url, array $args, array &$budget ) {
 			return new WP_Error( 0 === $hop ? 'a8csp_cws_link_unsafe' : 'a8csp_cws_link_failed', 'The URL is not a public web address.' );
 		}
 
+		// DNS lookups can't be given a timeout, so a slow one only shows up after it returns.
 		$args['timeout'] = min( 4, a8csp_cws_link_time_left( $budget ) );
 		if ( $args['timeout'] < 1 ) {
 			return $out_of_budget;
