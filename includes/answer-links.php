@@ -644,9 +644,18 @@ function a8csp_cws_resolve_link_url( $href ) {
 			return '';
 		}
 		$href = $home['scheme'] . '://' . $home['host'] . ( isset( $home['port'] ) ? ':' . (int) $home['port'] : '' ) . $href;
+	} elseif ( a8csp_cws_is_schemeless_web_link( $href ) ) {
+		$href = 'https://' . $href;
 	}
 
 	return a8csp_cws_sanitize_http_url( $href );
+}
+
+/**
+ * Whether an href is a domain name without a scheme ("example.com/page"), which models sometimes write.
+ */
+function a8csp_cws_is_schemeless_web_link( $href ) {
+	return (bool) preg_match( '#^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}(?:[/?\#]|$)#i', (string) $href );
 }
 
 function a8csp_cws_is_public_post_url( $url ) {
@@ -682,8 +691,20 @@ function a8csp_cws_apply_link_rule( $attributes, $inner, array $allowed, array $
 	}
 
 	$normalized = a8csp_cws_normalize_url( $url );
+	$is_site_host = a8csp_cws_strip_www( wp_parse_url( $url, PHP_URL_HOST ) ) === a8csp_cws_get_site_host();
 
-	if ( a8csp_cws_strip_www( wp_parse_url( $url, PHP_URL_HOST ) ) === a8csp_cws_get_site_host() ) {
+	if ( a8csp_cws_is_schemeless_web_link( $href ) ) {
+		$home_scheme = wp_parse_url( home_url(), PHP_URL_SCHEME );
+		if ( $is_site_host && in_array( $home_scheme, array( 'http', 'https' ), true ) ) {
+			$url = set_url_scheme( $url, $home_scheme );
+		} elseif ( ! isset( $allowed[ $normalized ] ) && isset( $allowed[ a8csp_cws_normalize_url( set_url_scheme( $url, 'http' ) ) ] ) ) {
+			// Older articles often link with http://.
+			$url = set_url_scheme( $url, 'http' );
+		}
+		$normalized = a8csp_cws_normalize_url( $url );
+	}
+
+	if ( $is_site_host ) {
 		// A query on the home page (?p=, ?page_id=) can address any post, so only the bare home page is always kept.
 		$home_path = untrailingslashit( (string) wp_parse_url( home_url(), PHP_URL_PATH ) );
 		$is_home = untrailingslashit( (string) wp_parse_url( $url, PHP_URL_PATH ) ) === $home_path && null === wp_parse_url( $url, PHP_URL_QUERY );

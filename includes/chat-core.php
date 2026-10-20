@@ -210,7 +210,7 @@ function a8csp_cws_get_bot_response($history) {
 	// Security: Build system message with length validation
 	$link_settings = a8csp_cws_get_link_settings();
 	$prompt = a8csp_cws_get_prompt( $link_settings );
-	if ( empty( $prompt ) || strlen( $prompt ) > 4000 ) {
+	if ( empty( $prompt ) || strlen( $prompt ) > 4500 ) {
 		error_log('A8CSP: Invalid or too long system prompt');
 		return 'System configuration error.';
 	}
@@ -284,14 +284,14 @@ function a8csp_cws_get_prompt( $link_settings = null ) {
 
 	$format_response = 'Reply in Markdown format, offering links to articles on this website to provide users with additional depth and context.';
 	if ( $recommendations ) {
-		$format_response .= " Only use URLs that appear in the context, or the official website of a place you recommend; never invent or guess a URL. Link each recommended place's name to its official website, using the home page if you are unsure of the exact page; links that can't be verified are removed automatically.";
+		$format_response .= ' When the user asks for places, recommend specific ones that answer the question, including restaurants, bars and hotels the articles don\'t cover. Link each place\'s name with Markdown, for example "**[Place Name](its URL)**: why it fits", never as a bare URL. Use its URL from "Links in this article" in the context if listed, otherwise its official website (the home page if unsure of the exact page). Write URLs in full: copy context URLs exactly and start others with https://. Never invent a URL. Links that can\'t be verified are removed and the name stays, so still name places whose website you are unsure of.';
 	} else {
-		$format_response .= ' Only use URLs that appear in the context; never invent or guess a URL.';
+		$format_response .= ' Only use URLs that appear in the context, copied in full exactly as written there; never invent or guess a URL.';
 	}
 
 	if ( ! empty( $link_settings['flight_links'] ) ) {
 		$format_response .= "\n\n" . sprintf(
-			'When it helps a user plan a trip, you can add a prefilled flight search link in exactly this format: [Search flights from New York to Lisbon](flight:JFK-LIS/2027-05-12/2027-05-19/2). Use IATA airport or city codes for the origin and destination, then the departure and return dates as YYYY-MM-DD (leave out the return date for one-way trips), and the number of adults (1-6) last. Only add the link when you know the origin, destination and dates; if the user asks about flights and any of them is missing, ask for it. Today\'s date is %s, and flight searches only work for dates within the next 330 days.',
+			'Only when the user has told you their origin, destination and travel dates, you can add a prefilled flight search link in exactly this format: [Search flights from New York to Lisbon](flight:JFK-LIS/2027-05-12/2027-05-19/2). The example\'s cities, dates and travelers are only an illustration; never reuse them. Use IATA airport or city codes for the origin and destination, then the departure and return dates as YYYY-MM-DD (leave out the return date for one-way trips), and the number of adults (1-6) last. Never assume an origin or dates; if the user asks about flights and any of them is missing, ask for it. Today\'s date is %s, and flight searches only work for dates within the next 330 days.',
 			wp_date( 'Y-m-d' )
 		);
 	}
@@ -304,12 +304,12 @@ function a8csp_cws_get_prompt( $link_settings = null ) {
 	$full_prompt = sanitize_textarea_field( implode( "\n\n", array_filter( array( $base_prompt, $custom_prompt, $safety_instructions, $format_response ), 'strlen' ) ) );
 	
 	// Security: Final length check
-	if ( strlen( $full_prompt ) > 4000 ) {
+	if ( strlen( $full_prompt ) > 4500 ) {
 		error_log('A8CSP: System prompt exceeds length limit');
 		// Return a shorter, safe version
 		$fallback = implode( "\n\n", array( $base_prompt, $safety_instructions, $format_response ) );
-		if ( strlen( $fallback ) > 4000 ) {
-			$fallback = substr( $fallback, 0, 4000 );
+		if ( strlen( $fallback ) > 4500 ) {
+			$fallback = substr( $fallback, 0, 4500 );
 		}
 		return sanitize_textarea_field( $fallback );
 	}
