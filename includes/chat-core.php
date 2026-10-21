@@ -210,7 +210,7 @@ function a8csp_cws_get_bot_response($history) {
 	// Security: Build system message with length validation
 	$link_settings = a8csp_cws_get_link_settings();
 	$prompt = a8csp_cws_get_prompt( $link_settings );
-	if ( empty( $prompt ) || strlen( $prompt ) > 4500 ) {
+	if ( empty( $prompt ) || strlen( $prompt ) > 5000 ) {
 		error_log('A8CSP: Invalid or too long system prompt');
 		return 'System configuration error.';
 	}
@@ -262,7 +262,7 @@ function a8csp_cws_get_bot_response($history) {
 }
 
 /**
- * System prompt; the link settings decide whether recommendations beyond the site and flight search links are allowed.
+ * System prompt; the link settings decide whether recommendations beyond the site and flight and hotel search links are allowed.
  */
 function a8csp_cws_get_prompt( $link_settings = null ) {
 	if ( ! is_array( $link_settings ) ) {
@@ -289,6 +289,10 @@ function a8csp_cws_get_prompt( $link_settings = null ) {
 		$format_response .= ' Only use URLs that appear in the context, copied in full exactly as written there; never invent or guess a URL.';
 	}
 
+	if ( ! empty( $link_settings['hotel_links'] ) ) {
+		$format_response .= ' Give every hotel link a title with the word hotel and the hotel\'s city, like **[Hotel Name](its URL "hotel, Paris")**, and use # as the URL when you don\'t know the hotel\'s website. Hotel links that can\'t be verified become a hotel search.';
+	}
+
 	if ( ! empty( $link_settings['flight_links'] ) ) {
 		$format_response .= "\n\n" . sprintf(
 			'Only when the user has told you their origin, destination and travel dates, you can add a prefilled flight search link in exactly this format: [Search flights from New York to Lisbon](flight:JFK-LIS/2027-05-12/2027-05-19/2). The example\'s cities, dates and travelers are only an illustration; never reuse them. Use IATA airport or city codes for the origin and destination, then the departure and return dates as YYYY-MM-DD (leave out the return date for one-way trips), and the number of adults (1-6) last. Never assume an origin or dates; if the user asks about flights and any of them is missing, ask for it. Today\'s date is %s, and flight searches only work for dates within the next 330 days.',
@@ -304,12 +308,12 @@ function a8csp_cws_get_prompt( $link_settings = null ) {
 	$full_prompt = sanitize_textarea_field( implode( "\n\n", array_filter( array( $base_prompt, $custom_prompt, $safety_instructions, $format_response ), 'strlen' ) ) );
 	
 	// Security: Final length check
-	if ( strlen( $full_prompt ) > 4500 ) {
+	if ( strlen( $full_prompt ) > 5000 ) {
 		error_log('A8CSP: System prompt exceeds length limit');
 		// Return a shorter, safe version
 		$fallback = implode( "\n\n", array( $base_prompt, $safety_instructions, $format_response ) );
-		if ( strlen( $fallback ) > 4500 ) {
-			$fallback = substr( $fallback, 0, 4500 );
+		if ( strlen( $fallback ) > 5000 ) {
+			$fallback = substr( $fallback, 0, 5000 );
 		}
 		return sanitize_textarea_field( $fallback );
 	}
