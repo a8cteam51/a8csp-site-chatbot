@@ -340,7 +340,7 @@ function a8csp_cws_build_hotel_search_url( $name, $city = '' ) {
 		return '';
 	}
 
-	$query = ( '' === $city || false !== mb_stripos( $name, $city ) ) ? $name : $name . ', ' . $city;
+	$query = ( '' === $city || preg_match( '/' . preg_quote( $city, '/' ) . '/iu', $name ) ) ? $name : $name . ', ' . $city;
 	$url = apply_filters(
 		'a8csp_cws_hotel_search_url',
 		'https://www.booking.com/searchresults.html?ss=' . rawurlencode( $query ),
