@@ -271,7 +271,7 @@ function a8csp_cws_validate_options($input) {
 		}
 	}
 
-	foreach ( array( 'recommendation_links', 'flight_links' ) as $checkbox_field ) {
+	foreach ( array( 'recommendation_links', 'flight_links', 'hotel_links' ) as $checkbox_field ) {
 		if ( ! empty( $input[ $checkbox_field ] ) ) {
 			$validated[ $checkbox_field ] = '1';
 		}
@@ -391,6 +391,14 @@ function a8csp_cws_register_settings() {
 	);
 
 	add_settings_field(
+		'hotel_links',
+		'Hotel Search Links',
+		'a8csp_cws_hotel_links_callback',
+		'chat_with_site_settings',
+		'ai_chat_section'
+	);
+
+	add_settings_field(
 		'link_tracking_label',
 		'Link Tracking Label',
 		'a8csp_cws_link_tracking_label_callback',
@@ -500,6 +508,13 @@ function a8csp_cws_flight_links_callback() {
 
 	echo '<label for="flight_links"><input type="checkbox" id="flight_links" name="a8csp_chat_with_site_options[flight_links]" value="1"' . checked( $link_settings['flight_links'], true, false ) . '> Add flight search links to answers</label>';
 	echo '<p class="description">When a visitor gives a route and travel dates, the answer can link to a prefilled Expedia flight search.</p>';
+}
+
+function a8csp_cws_hotel_links_callback() {
+	$link_settings = a8csp_cws_get_link_settings();
+
+	echo '<label for="hotel_links"><input type="checkbox" id="hotel_links" name="a8csp_chat_with_site_options[hotel_links]" value="1"' . checked( $link_settings['hotel_links'], true, false ) . '> Link hotels to a Booking.com search when their own website can\'t be linked</label>';
+	echo '<p class="description">When a hotel\'s website is unknown or fails the link check, its name links to a Booking.com search for that hotel instead of showing as plain text.</p>';
 }
 
 function a8csp_cws_link_tracking_label_callback() {

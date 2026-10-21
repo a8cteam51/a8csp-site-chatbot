@@ -1,6 +1,6 @@
 <?php
 /**
- * Links in chat answers: article link extraction, flight search links, external link verification and the link policy.
+ * Links in chat answers: article link extraction, flight and hotel search links, external link verification and the link policy.
  */
 
 // Prevent direct access
@@ -20,6 +20,7 @@ function a8csp_cws_get_link_settings() {
 	return array(
 		'recommendations' => ! empty( $options['recommendation_links'] ),
 		'flight_links'    => ! empty( $options['flight_links'] ),
+		'hotel_links'     => ! empty( $options['hotel_links'] ),
 		'tracking_label'  => a8csp_cws_sanitize_tracking_label( $options['link_tracking_label'] ?? '' ),
 		'skimlinks_id'    => a8csp_cws_sanitize_skimlinks_site_id( $options['skimlinks_site_id'] ?? '' ),
 	);
@@ -113,13 +114,20 @@ function a8csp_cws_sanitize_http_url( $url ) {
  * Decoded href from a tag's attribute string, or ''.
  */
 function a8csp_cws_get_link_href( $attributes ) {
-	if ( ! preg_match( '/(?:^|\s)href\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s"\'>]+))/i', (string) $attributes, $match ) ) {
+	return a8csp_cws_get_link_attribute( $attributes, 'href' );
+}
+
+/**
+ * Decoded value of one attribute from a tag's attribute string, or ''.
+ */
+function a8csp_cws_get_link_attribute( $attributes, $name ) {
+	if ( ! preg_match( '/(?:^|\s)' . preg_quote( $name, '/' ) . '\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s"\'>]+))/i', (string) $attributes, $match ) ) {
 		return '';
 	}
 
-	$href = $match[3] ?? ( '' !== ( $match[2] ?? '' ) ? $match[2] : $match[1] );
+	$value = $match[3] ?? ( '' !== ( $match[2] ?? '' ) ? $match[2] : $match[1] );
 
-	return trim( html_entity_decode( $href, ENT_QUOTES | ENT_HTML5, 'UTF-8' ) );
+	return trim( html_entity_decode( $value, ENT_QUOTES | ENT_HTML5, 'UTF-8' ) );
 }
 
 function a8csp_cws_strip_anchor_tags( $html ) {
@@ -318,6 +326,31 @@ function a8csp_cws_replace_flight_markers( $markdown, $enabled ) {
 		'markdown' => null === $replaced ? (string) $markdown : $replaced,
 		'urls'     => array_values( array_unique( $urls ) ),
 	);
+}
+
+/**
+ * Booking.com search for a hotel by name and city, or '' without a name.
+ */
+function a8csp_cws_build_hotel_search_url( $name, $city = '' ) {
+	$name = trim( (string) preg_replace( '/\s+/u', ' ', wp_strip_all_tags( (string) $name ) ) );
+	$city = trim( (string) preg_replace( '/\s+/u', ' ', (string) preg_replace( '/[^\p{L}\p{M}\s\'.-]/u', '', wp_strip_all_tags( (string) $city ) ) ) );
+	$name = mb_substr( $name, 0, 120 );
+	$city = mb_substr( $city, 0, 60 );
+	if ( '' === $name ) {
+		return '';
+	}
+
+	$query = ( '' === $city || preg_match( '/' . preg_quote( $city, '/' ) . '/iu', $name ) ) ? $name : $name . ', ' . $city;
+	$url = apply_filters(
+		'a8csp_cws_hotel_search_url',
+		'https://www.booking.com/searchresults.html?ss=' . rawurlencode( $query ),
+		array(
+			'name' => $name,
+			'city' => $city,
+		)
+	);
+
+	return is_string( $url ) ? a8csp_cws_sanitize_http_url( $url ) : '';
 }
 
 function a8csp_cws_link_cache_key( $url ) {
@@ -677,7 +710,7 @@ function a8csp_cws_apply_link_rule( $attributes, $inner, array $allowed, array $
 
 	$href = a8csp_cws_get_link_href( $attributes );
 	if ( '' === $href ) {
-		return $inner;
+		return a8csp_cws_apply_hotel_search_fallback( $attributes, $inner, $settings );
 	}
 
 	if ( preg_match( '/^(mailto|tel):/i', $href ) ) {
@@ -687,7 +720,7 @@ function a8csp_cws_apply_link_rule( $attributes, $inner, array $allowed, array $
 
 	$url = a8csp_cws_resolve_link_url( $href );
 	if ( '' === $url ) {
-		return $inner;
+		return a8csp_cws_apply_hotel_search_fallback( $attributes, $inner, $settings );
 	}
 
 	$normalized = a8csp_cws_normalize_url( $url );
@@ -732,9 +765,29 @@ function a8csp_cws_apply_link_rule( $attributes, $inner, array $allowed, array $
 	}
 
 	if ( '' === $final ) {
+		return a8csp_cws_apply_hotel_search_fallback( $attributes, $inner, $settings );
+	}
+
+	return a8csp_cws_render_external_link( $final, $inner, $settings );
+}
+
+/**
+ * A hotel search link for a link titled "hotel, City" whose own URL can't be shown, or the link's inner HTML.
+ */
+function a8csp_cws_apply_hotel_search_fallback( $attributes, $inner, array $settings ) {
+	if ( empty( $settings['hotel_links'] ) || ! preg_match( '/^hotel\b\s*(?:[,:-]\s*|in\s+)?(.*)$/isu', a8csp_cws_get_link_attribute( $attributes, 'title' ), $title ) ) {
 		return $inner;
 	}
 
+	$url = a8csp_cws_build_hotel_search_url( html_entity_decode( wp_strip_all_tags( $inner ), ENT_QUOTES | ENT_HTML5, 'UTF-8' ), $title[1] );
+
+	return '' === $url ? $inner : a8csp_cws_render_external_link( $url, $inner, $settings );
+}
+
+/**
+ * An external link with our attributes, through the Skimlinks link wrapper when a site ID is set.
+ */
+function a8csp_cws_render_external_link( $final, $inner, array $settings ) {
 	$label = a8csp_cws_sanitize_tracking_label( $settings['tracking_label'] ?? '' );
 	$site_id = a8csp_cws_sanitize_skimlinks_site_id( $settings['skimlinks_id'] ?? '' );
 	if ( '' !== $site_id ) {

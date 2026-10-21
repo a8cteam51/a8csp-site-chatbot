@@ -273,7 +273,7 @@ For each visitor message, the plugin:
 2. Creates an embedding with the configured provider.
 3. Queries Pinecone for up to five matches.
 4. Loads up to three matching published posts from WordPress, with up to 8 links to other websites from each. A post's links only use what is left of its third of the context, so they never push the next post out.
-5. Builds a context-limited system message: a prompt of up to 4,500 characters and up to 6,000 characters of context, 10,000 characters in total.
+5. Builds a context-limited system message: a prompt of up to 5,000 characters and up to 6,000 characters of context, 10,000 characters in total.
 6. Sends the chat completion request to the configured provider.
 7. Turns flight markers into flight search links, then converts the Markdown response to safe HTML with Parsedown.
 8. Checks every link in the answer, as described under [Links in Answers](#links-in-answers).
@@ -322,13 +322,30 @@ https://www.expedia.com/go/flight/search/roundtrip/2027-05-12/2027-05-19?FromAir
 
 One-way searches use `oneway` and repeat the departure date, because Expedia needs both date segments. Dates must be between today, in the site timezone, and 330 days ahead; Expedia shows no results for later dates. A marker that is invalid, or any marker while the setting is off, is replaced with its link text.
 
+### Hotel Search Links
+
+The model often remembers a hotel's name but guesses its website, so the link fails the checks and the name shows as plain text. With **Hotel Search Links** checked, the prompt asks the model to give every hotel link the title `hotel, <city>`, and to use `#` as the URL when it doesn't know the hotel's website:
+
+```text
+[Verride Palácio Santa Catarina](https://www.verridesc.pt/ "hotel, Lisbon")
+[The Vintage Hotel & Spa](# "hotel, Lisbon")
+```
+
+A hotel link that passes the checks keeps its own URL. When the link would be removed, because its URL is `#`, not a web address, or fails the checks, it links to a Booking.com search for the link text and the city instead:
+
+```text
+https://www.booking.com/searchresults.html?ss=Verride%20Pal%C3%A1cio%20Santa%20Catarina%2C%20Lisbon
+```
+
+When the name is right, Booking.com usually shows that hotel as the only match. When it isn't, the search shows the city's hotels. The city is left out when the name already contains it. Links to this site and links without the `hotel` title are handled as before. The setting is off by default, and the title is never shown.
+
 ### Link Tracking Label
 
-**Link Tracking Label** adds a `data-skimlinks-tracking` attribute with the label to every link to another website in an answer, flight searches included. Skimlinks sends it as the Custom ID (`xcust`), so clicks from the chatbot can be reported on their own. The Skimlinks script must already be on the site; the plugin does not load it. The label may contain letters, numbers, hyphens, and underscores, up to 50 characters. It is empty by default, which adds no attribute. `rel="nofollow"` and `target="_blank"` do not stop Skimlinks from affiliating a link.
+**Link Tracking Label** adds a `data-skimlinks-tracking` attribute with the label to every link to another website in an answer, flight and hotel searches included. Skimlinks sends it as the Custom ID (`xcust`), so clicks from the chatbot can be reported on their own. The Skimlinks script must already be on the site; the plugin does not load it. The label may contain letters, numbers, hyphens, and underscores, up to 50 characters. It is empty by default, which adds no attribute. `rel="nofollow"` and `target="_blank"` do not stop Skimlinks from affiliating a link.
 
 ### Skimlinks Site ID
 
-The Skimlinks script looks up the merchants of the links on a page when the page loads. Links the chat adds later are never looked up, so the script leaves them alone and they earn nothing. With **Skimlinks Site ID** set (Publisher Hub, Settings, Sites; it looks like `12345X678901`), every link to another website in an answer, flight searches included, is written as a Skimlinks link wrapper URL instead:
+The Skimlinks script looks up the merchants of the links on a page when the page loads. Links the chat adds later are never looked up, so the script leaves them alone and they earn nothing. With **Skimlinks Site ID** set (Publisher Hub, Settings, Sites; it looks like `12345X678901`), every link to another website in an answer, flight and hotel searches included, is written as a Skimlinks link wrapper URL instead:
 
 ```text
 https://go.skimresources.com/?id=12345X678901&url=<encoded link>&xcust=<link tracking label>
@@ -345,6 +362,7 @@ Gemini's Google Search grounding is deliberately not used. Its terms forbid modi
 | Filter | Arguments | Description |
 | --- | --- | --- |
 | `a8csp_cws_flight_search_url` | `$url`, `$args` | The Expedia URL built from a flight marker. `$args` has `origin`, `destination`, `depart`, `return` (`''` for one-way), and `adults`. Return another `http` or `https` URL to use a different booking site, or `''` to show the link text only. |
+| `a8csp_cws_hotel_search_url` | `$url`, `$args` | The Booking.com search URL for a hotel link that can't be shown. `$args` has `name` and `city` (`''` when the title has none). Return another `http` or `https` URL to use a different booking site, or `''` to show the link text only. |
 | `a8csp_cws_link_check_user_agent` | `$user_agent`, `$url` | The `User-Agent` header sent when verifying a link. Default `Mozilla/5.0 (compatible; A8CSP-Site-Chatbot/<version>; +<home URL>)`. |
 | `a8csp_cws_link_root_fallback` | `$allowed`, `$url` | Whether a recommended link that fails can fall back to its site's home page. Default `false` for social networks and shared platforms such as maps, review, booking, and hotel chain sites, `true` otherwise. |
 | `a8csp_cws_gated_shortcodes` | `$tags` | Shortcode tags whose content is hidden from some visitors, so links inside them are not given to the model. |
