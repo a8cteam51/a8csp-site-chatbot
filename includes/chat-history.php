@@ -1,6 +1,6 @@
 <?php
 /**
- * Chat history storage: a random chat ID in a cookie, with the conversation kept in a transient.
+ * Chat history storage (a random chat ID in a cookie, with the conversation kept in a transient) and the history-aware archive search.
  */
 
 // Prevent direct access
@@ -136,4 +136,67 @@ function a8csp_cws_build_search_query( array $history, $max_user_messages = 3, $
 	}
 
 	return implode( "\n", $parts );
+}
+
+/**
+ * One match per post, best score first: the highest score a post got in any of the searches.
+ */
+function a8csp_cws_merge_matches( array $match_lists, $limit = 5 ) {
+	$best = array();
+	foreach ( $match_lists as $matches ) {
+		foreach ( (array) $matches as $match ) {
+			if ( ! is_array( $match ) ) {
+				continue;
+			}
+			$key = isset( $match['metadata']['post_id'] ) ? 'post:' . (int) $match['metadata']['post_id'] : 'id:' . ( $match['id'] ?? '' );
+			$score = isset( $match['score'] ) && is_numeric( $match['score'] ) ? (float) $match['score'] : 0.0;
+			if ( ! isset( $best[ $key ] ) || $score > $best[ $key ]['score'] ) {
+				$best[ $key ] = array(
+					'score' => $score,
+					'match' => $match,
+				);
+			}
+		}
+	}
+
+	// Stable sort: equal scores keep the order of the first search.
+	$order = array_keys( $best );
+	uksort(
+		$best,
+		function ( $a, $b ) use ( $best, $order ) {
+			return $best[ $b ]['score'] <=> $best[ $a ]['score'] ?: array_search( $a, $order, true ) <=> array_search( $b, $order, true );
+		}
+	);
+
+	return array_slice( array_column( $best, 'match' ), 0, $limit );
+}
+
+/**
+ * Archive matches for the latest message alone and with the earlier questions, or null when it can't be embedded.
+ */
+function a8csp_cws_find_archive_matches( array $history ) {
+	$latest = '';
+	for ( $i = count( $history ) - 1; $i >= 0; $i-- ) {
+		if ( is_array( $history[ $i ] ) && 'user' === ( $history[ $i ]['role'] ?? '' ) ) {
+			$latest = a8csp_cws_build_search_query( array( $history[ $i ] ) );
+			break;
+		}
+	}
+
+	$embedding = a8csp_cws_get_openai_embedding( $latest );
+	if ( empty( $embedding ) ) {
+		return null;
+	}
+	$match_lists = array( a8csp_cws_query_pinecone( $embedding ) );
+
+	// A follow-up like "in January, for 2 people" matches weakly alone and strongly with the earlier questions; a new topic is the reverse.
+	$combined = a8csp_cws_build_search_query( $history );
+	if ( '' !== $combined && $combined !== $latest ) {
+		$combined_embedding = a8csp_cws_get_openai_embedding( $combined );
+		if ( ! empty( $combined_embedding ) ) {
+			$match_lists[] = a8csp_cws_query_pinecone( $combined_embedding );
+		}
+	}
+
+	return a8csp_cws_merge_matches( $match_lists );
 }

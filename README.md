@@ -278,8 +278,8 @@ The plugin uses the rightmost address in the header, which is the one your proxy
 For each visitor message, the plugin:
 
 1. Sanitizes and bounds the message and chat history.
-2. Creates an embedding with the configured provider from the visitor's last three messages, so a follow-up like "in January, for 2 people" finds articles about the trip being discussed.
-3. Queries Pinecone for up to five matches.
+2. Creates an embedding of the latest message with the configured provider, and queries Pinecone for up to five matches.
+3. When the visitor has asked earlier questions, does the same for their last three messages together, and keeps each post's best score from both searches, up to five matches. A follow-up like "in January, for 2 people" matches weakly on its own and strongly with the earlier questions, while a new topic matches strongly on its own, so both find the right articles.
 4. Loads up to three matching published posts from WordPress, with up to 8 links to other websites from each. A post's links only use what is left of its third of the context, so they never push the next post out.
 5. Builds a context-limited system message: a prompt of up to 5,000 characters and up to 6,000 characters of context, 10,000 characters in total.
 6. Sends the chat completion request to the configured provider.

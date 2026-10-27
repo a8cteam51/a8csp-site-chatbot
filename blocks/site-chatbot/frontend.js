@@ -18,7 +18,6 @@ document.addEventListener( 'DOMContentLoaded', () => {
 
 	// Get the bot name from localized data
 	const botName = a8csp_ajax.bot_name || 'Chatbot';
-	let messageSent = false;
 
 	// The stored chat is fetched after load so cached pages never contain one visitor's messages.
 	async function loadHistory() {
@@ -35,11 +34,13 @@ document.addEventListener( 'DOMContentLoaded', () => {
 			}
 
 			const result = await response.json();
-			if ( messageSent || ! result || ! result.success || ! Array.isArray( result.data ) || ! result.data.length ) {
+			if ( ! result || ! result.success || ! Array.isArray( result.data ) || ! result.data.length ) {
 				return;
 			}
 
+			// Messages sent before the history arrived stay below it.
 			const initialMessage = history.querySelector( '.a8csp-initial-message' );
+			const anchor = initialMessage ? initialMessage.nextSibling : history.firstChild;
 			if ( initialMessage ) {
 				initialMessage.remove();
 			}
@@ -59,7 +60,7 @@ document.addEventListener( 'DOMContentLoaded', () => {
 					label.textContent = 'User:';
 					msg.appendChild( document.createTextNode( ' ' + String( stored.content ) ) );
 				}
-				history.appendChild( msg );
+				history.insertBefore( msg, anchor );
 			} );
 			history.scrollTop = history.scrollHeight;
 		} catch ( error ) {
@@ -94,7 +95,6 @@ document.addEventListener( 'DOMContentLoaded', () => {
 	async function submitMessage() {
 		const message = input.value.trim();
 		if ( ! message ) return;
-		messageSent = true;
 
 		// Add user message
 		const userMsg = document.createElement( 'div' );
