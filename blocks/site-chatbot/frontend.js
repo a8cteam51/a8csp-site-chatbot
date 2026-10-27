@@ -19,6 +19,55 @@ document.addEventListener( 'DOMContentLoaded', () => {
 	// Get the bot name from localized data
 	const botName = a8csp_ajax.bot_name || 'Chatbot';
 
+	// The stored chat is fetched after load so cached pages never contain one visitor's messages.
+	async function loadHistory() {
+		try {
+			const response = await fetch( a8csp_ajax.ajax_url, {
+				method: 'POST',
+				credentials: 'same-origin',
+				body: new URLSearchParams( {
+					action: 'a8csp_chat_history'
+				} )
+			} );
+			if ( ! response.ok ) {
+				return;
+			}
+
+			const result = await response.json();
+			if ( ! result || ! result.success || ! Array.isArray( result.data ) || ! result.data.length ) {
+				return;
+			}
+
+			// Messages sent before the history arrived stay below it.
+			const initialMessage = history.querySelector( '.a8csp-initial-message' );
+			const anchor = initialMessage ? initialMessage.nextSibling : history.firstChild;
+			if ( initialMessage ) {
+				initialMessage.remove();
+			}
+
+			result.data.forEach( ( stored ) => {
+				const msg = document.createElement( 'div' );
+				const label = document.createElement( 'strong' );
+				msg.appendChild( label );
+				if ( stored.role === 'assistant' ) {
+					msg.className = 'a8csp-chat-message bot-message';
+					label.textContent = botName + ':';
+					const content = document.createElement( 'span' );
+					content.innerHTML = ' ' + String( stored.content );
+					msg.appendChild( content );
+				} else {
+					msg.className = 'a8csp-chat-message user-message';
+					label.textContent = 'User:';
+					msg.appendChild( document.createTextNode( ' ' + String( stored.content ) ) );
+				}
+				history.insertBefore( msg, anchor );
+			} );
+			history.scrollTop = history.scrollHeight;
+		} catch ( error ) {
+			console.error( 'A8CSP Chat: Loading the chat history failed', error );
+		}
+	}
+
 	// Security: Function to refresh nonce if expired
 	async function refreshNonceIfNeeded() {
 		try {
@@ -202,4 +251,6 @@ document.addEventListener( 'DOMContentLoaded', () => {
 		e.preventDefault();
 		submitMessage();
 	} );
+
+	loadHistory();
 } );

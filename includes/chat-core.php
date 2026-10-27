@@ -66,14 +66,12 @@ function a8csp_cws_get_bot_response($history) {
 		return 'Please provide a question or message.';
 	}
 
-	$embedding = a8csp_cws_get_openai_embedding($query);
+	$matches = a8csp_cws_find_archive_matches( $validated_history );
 
-	if (empty($embedding)) {
+	if ( null === $matches ) {
 		error_log('A8CSP: Failed to generate embedding for query');
 		return 'Unable to process your question at this time.';
 	}
-	
-	$matches = a8csp_cws_query_pinecone($embedding);
 
 	if (empty($matches)) {
 		return 'I don\'t have specific information about that topic in my knowledge base. Could you try rephrasing your question?';
