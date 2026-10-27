@@ -15,6 +15,7 @@ The plugin is registered in WordPress as **51 Site Chatbot**. It adds a **51 Cha
 - `includes/sync-jobs-admin.php` - the **Background sync** panel on the Content Library page, its admin AJAX handlers, and its script loading.
 - `includes/cli.php` - the `wp site-chatbot` WP-CLI command, loaded only when WP-CLI is running.
 - `includes/answer-links.php` - the link policy for chat answers: article link extraction, external link verification, flight search links, and the Skimlinks tracking label.
+- `includes/chat-history.php` - chat history storage: the chat cookie, the stored conversation, and the archive search text built from recent messages.
 - `includes/chat-core.php` - chat history validation, retrieval context assembly, prompt construction, response limiting, and frontend rate limiting.
 - `includes/block.php` - block registration, server render callback, frontend script/style registration, and AJAX handlers.
 - `blocks/site-chatbot/` - block metadata, editor JavaScript, frontend JavaScript, and frontend styles.
@@ -238,14 +239,21 @@ The block is registered as `a8csp/site-chatbot` in the `widgets` category with t
 - `botName`
 - `initialMessage`
 
-The server render callback enqueues `blocks/site-chatbot/frontend.js` and `blocks/site-chatbot/style.css`, localizes `admin-ajax.php` data, and renders the current PHP session chat history. The editor script provides sidebar controls for bot name, initial message, and primary color.
+The server render callback enqueues `blocks/site-chatbot/frontend.js` and `blocks/site-chatbot/style.css`, localizes `admin-ajax.php` data, and renders the initial message. The editor script provides sidebar controls for bot name, initial message, and primary color.
 
-The frontend uses two AJAX actions for both authenticated and anonymous visitors:
+The frontend uses three AJAX actions for both authenticated and anonymous visitors:
 
 - `a8csp_chat_message`
+- `a8csp_chat_history`
 - `a8csp_refresh_nonce`
 
-Chat history is stored in the visitor PHP session as `frontend_chat_history` and is bounded to the last 20 messages.
+### Chat History
+
+PHP sessions are not used. By default they are files on one web server, so a host that spreads requests across several servers can lose them between messages. On the first message, the plugin sets an `a8csp_cws_chat` cookie with a random chat ID (HttpOnly, `SameSite=Strict`, Secure on HTTPS, removed when the browser closes). The conversation is stored under that ID in an `a8csp_cws_chat_<hash>` transient, which a persistent object cache shares across servers. The transient name is a salted hash of the ID, so stored names can't be used as cookies.
+
+- Each chat keeps its last 20 messages, and expires 2 hours after its last message. The `a8csp_cws_chat_history_ttl` filter changes the lifetime in seconds.
+- A cookie whose chat is not stored, because it expired or was never issued, starts a new chat with a new ID.
+- The page itself never contains a conversation, so a page cache can't show one visitor's messages to another. After the page loads, the frontend requests the stored messages with `a8csp_chat_history` and shows them in place of the initial message.
 
 ### Message Limits
 
@@ -270,7 +278,7 @@ The plugin uses the rightmost address in the header, which is the one your proxy
 For each visitor message, the plugin:
 
 1. Sanitizes and bounds the message and chat history.
-2. Creates an embedding with the configured provider.
+2. Creates an embedding with the configured provider from the visitor's last three messages, so a follow-up like "in January, for 2 people" finds articles about the trip being discussed.
 3. Queries Pinecone for up to five matches.
 4. Loads up to three matching published posts from WordPress, with up to 8 links to other websites from each. A post's links only use what is left of its third of the context, so they never push the next post out.
 5. Builds a context-limited system message: a prompt of up to 5,000 characters and up to 6,000 characters of context, 10,000 characters in total.

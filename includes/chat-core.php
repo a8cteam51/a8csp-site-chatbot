@@ -66,7 +66,8 @@ function a8csp_cws_get_bot_response($history) {
 		return 'Please provide a question or message.';
 	}
 
-	$embedding = a8csp_cws_get_openai_embedding($query);
+	// Follow-ups like "in January, for 2 people" only find the right articles together with the earlier questions.
+	$embedding = a8csp_cws_get_openai_embedding( a8csp_cws_build_search_query( $validated_history ) );
 
 	if (empty($embedding)) {
 		error_log('A8CSP: Failed to generate embedding for query');

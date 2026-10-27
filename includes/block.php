@@ -72,6 +72,9 @@ add_action( 'wp_ajax_nopriv_a8csp_chat_message', 'a8csp_handle_chat_message' );
 add_action( 'wp_ajax_a8csp_refresh_nonce', 'a8csp_handle_nonce_refresh' );
 add_action( 'wp_ajax_nopriv_a8csp_refresh_nonce', 'a8csp_handle_nonce_refresh' );
 
+add_action( 'wp_ajax_a8csp_chat_history', 'a8csp_handle_chat_history' );
+add_action( 'wp_ajax_nopriv_a8csp_chat_history', 'a8csp_handle_chat_history' );
+
 function a8csp_handle_chat_message() {
 	// Verify nonce for security
 	if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( $_POST['nonce'], 'a8csp-chat' ) ) {
@@ -98,43 +101,10 @@ function a8csp_handle_chat_message() {
 		wp_send_json_error( 'Empty message' );
 	}
 
-	// Security: Start session with security settings
-	if ( ! session_id() ) {
-		// Security: Set secure session parameters
-		if ( ! headers_sent() ) {
-			session_set_cookie_params( array(
-				'lifetime' => 0, // Session cookie
-				'path' => '/',
-				'domain' => '',
-				'secure' => is_ssl(), // HTTPS only if available
-				'httponly' => true, // Prevent XSS access to session cookie
-				'samesite' => 'Strict' // CSRF protection
-			) );
-		}
-		session_start();
-		
-		// Security: Regenerate session ID to prevent fixation
-		if ( ! isset( $_SESSION['a8csp_session_started'] ) ) {
-			session_regenerate_id( true );
-			$_SESSION['a8csp_session_started'] = true;
-		}
-	}
-	if ( ! isset( $_SESSION['frontend_chat_history'] ) ) {
-		$_SESSION['frontend_chat_history'] = array();
-	}
-
-	// Add user message to history
-	$_SESSION['frontend_chat_history'][] = array( 'role' => 'user', 'content' => $message );
-
-	// Bound history growth - keep only last 20 messages (10 exchanges)
-	$max_history = 20;
-	if ( count( $_SESSION['frontend_chat_history'] ) > $max_history ) {
-		$_SESSION['frontend_chat_history'] = array_slice( 
-			$_SESSION['frontend_chat_history'], 
-			-$max_history, 
-			$max_history 
-		);
-	}
+	$chat_id = a8csp_cws_start_chat();
+	$chat_history = a8csp_cws_get_chat_history( $chat_id );
+	$chat_history[] = array( 'role' => 'user', 'content' => $message );
+	$chat_history = array_slice( $chat_history, -A8CSP_CWS_CHAT_MAX_MESSAGES );
 
 	// Guard against missing function
 	if ( ! function_exists( 'a8csp_cws_get_bot_response' ) ) {
@@ -143,15 +113,15 @@ function a8csp_handle_chat_message() {
 
 	// Get bot response with error handling
 	try {
-		$response = a8csp_cws_get_bot_response( $_SESSION['frontend_chat_history'] );
+		$response = a8csp_cws_get_bot_response( $chat_history );
 		
 		// Validate response
 		if ( empty( $response ) || ! is_string( $response ) ) {
 			wp_send_json_error( 'Invalid response from chat service' );
 		}
 
-		// Add bot response to history
-		$_SESSION['frontend_chat_history'][] = array( 'role' => 'assistant', 'content' => $response );
+		$chat_history[] = array( 'role' => 'assistant', 'content' => $response );
+		a8csp_cws_save_chat_history( $chat_id, $chat_history );
 
 		wp_send_json_success( $response );
 
@@ -187,6 +157,21 @@ function a8csp_handle_nonce_refresh() {
 	) );
 }
 
+/**
+ * The visitor's stored chat, loaded after the page so a page cache never holds one visitor's messages.
+ */
+function a8csp_handle_chat_history() {
+	$messages = array();
+	foreach ( a8csp_cws_get_chat_history( a8csp_cws_get_chat_id() ) as $message ) {
+		$messages[] = array(
+			'role'    => $message['role'],
+			'content' => 'assistant' === $message['role'] ? wp_kses_post( $message['content'] ) : $message['content'],
+		);
+	}
+
+	wp_send_json_success( $messages );
+}
+
 function a8csp_render_site_chatbot_block( $attributes ) {
 	wp_enqueue_script( 'a8csp-site-chatbot-frontend' );
 	wp_enqueue_style( 'a8csp-site-chatbot-style' );
@@ -210,53 +195,13 @@ function a8csp_render_site_chatbot_block( $attributes ) {
 		'bot_name' => esc_html( $bot_name ),
 	) );
 
-	// Security: Start session with security settings
-	if ( ! session_id() ) {
-		// Security: Set secure session parameters
-		if ( ! headers_sent() ) {
-			session_set_cookie_params( array(
-				'lifetime' => 0, // Session cookie
-				'path' => '/',
-				'domain' => '',
-				'secure' => is_ssl(), // HTTPS only if available
-				'httponly' => true, // Prevent XSS access to session cookie
-				'samesite' => 'Strict' // CSRF protection
-			) );
-		}
-		session_start();
-		
-		// Security: Regenerate session ID to prevent fixation
-		if ( ! isset( $_SESSION['a8csp_session_started'] ) ) {
-			session_regenerate_id( true );
-			$_SESSION['a8csp_session_started'] = true;
-		}
-	}
-
-	$history = isset( $_SESSION['frontend_chat_history'] ) ? $_SESSION['frontend_chat_history'] : array();
-
 	ob_start();
 	?>
 	<div class="a8csp-chatbot" style="--a8csp-chatbot-primary-color: <?php echo esc_attr( $primary_color ); ?>; --a8csp-chatbot-primary-color-hover: <?php echo esc_attr( $primary_color_hover ); ?>; --a8csp-chatbot-primary-color-focus: <?php echo esc_attr( $primary_color_focus ); ?>">
 		<div id="a8csp-chat-history">
-			<?php if ( empty( $history ) ) : ?>
-				<div class="a8csp-chat-message bot-message">
-					<strong><?php echo esc_html( $bot_name ); ?>:</strong> <?php echo esc_html( $initial_message ); ?>
-				</div>
-			<?php endif; ?>
-			<?php foreach ( $history as $msg ) : ?>
-				<div class="a8csp-chat-message <?php echo esc_attr( $msg['role'] === 'user' ? 'user-message' : 'bot-message' ); ?>">
-					<strong><?php echo esc_html( $msg['role'] === 'user' ? 'User' : $bot_name ); ?>:</strong> 
-					<?php 
-					if ( $msg['role'] === 'assistant' ) {
-						// Bot messages may contain HTML from Markdown conversion
-						echo wp_kses_post( $msg['content'] );
-					} else {
-						// User messages should be plain text
-						echo esc_html( $msg['content'] );
-					}
-					?>
-				</div>
-			<?php endforeach; ?>
+			<div class="a8csp-chat-message bot-message a8csp-initial-message">
+				<strong><?php echo esc_html( $bot_name ); ?>:</strong> <?php echo esc_html( $initial_message ); ?>
+			</div>
 		</div>
 		<form id="a8csp-chat-form">
 			<textarea id="a8csp-chat-input" placeholder="Type your message..."></textarea>
