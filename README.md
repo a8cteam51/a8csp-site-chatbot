@@ -2,7 +2,7 @@
 
 A8CSP Site Chatbot is a WordPress plugin for creating embeddings from published site content, storing those vectors in Pinecone, and answering visitor questions through an AI-powered chat block.
 
-The plugin is registered in WordPress as **51 Site Chatbot**. It adds a **51 Chatbot** admin menu with Content Library and Settings pages, the `a8csp/site-chatbot` block for placing the chat UI on posts or pages, and a `wp site-chatbot` WP-CLI command for syncing content.
+The plugin is registered in WordPress as **51 Site Chatbot**. It adds a **51 Chatbot** admin menu with Content Library, Settings, and Usage pages, the `a8csp/site-chatbot` block for placing the chat UI on posts or pages, and a `wp site-chatbot` WP-CLI command for syncing content.
 
 ## What is in this repository
 
@@ -17,6 +17,7 @@ The plugin is registered in WordPress as **51 Site Chatbot**. It adds a **51 Cha
 - `includes/answer-links.php` - the link policy for chat answers: article link extraction, external link verification, flight search links, and the Skimlinks tracking label.
 - `includes/chat-history.php` - chat history storage: the chat cookie, the stored conversation, and the archive search text built from recent messages.
 - `includes/chat-core.php` - chat history validation, retrieval context assembly, prompt construction, response limiting, and frontend rate limiting.
+- `includes/usage.php` - the **51 Chatbot > Usage** page, the rollup of finished days into the `a8csp_cws_chat_usage` option, and the figures the page shows.
 - `includes/block.php` - block registration, server render callback, frontend script/style registration, and AJAX handlers.
 - `blocks/site-chatbot/` - block metadata, editor JavaScript, frontend JavaScript, and frontend styles.
 - `assets/admin.css` - admin UI styles for the plugin screens, including the background sync panel.
@@ -253,7 +254,9 @@ PHP sessions are not used. By default they are files on one web server, so a hos
 
 - Each chat keeps its last 20 messages, and expires 2 hours after its last message. The `a8csp_cws_chat_history_ttl` filter changes the lifetime in seconds.
 - A cookie whose chat is not stored, because it expired or was never issued, starts a new chat with a new ID.
-- The page itself never contains a conversation, so a page cache can't show one visitor's messages to another. After the page loads, the frontend requests the stored messages with `a8csp_chat_history` and shows them in place of the initial message.
+- The page itself never contains a conversation, so a page cache can't show one visitor's messages to another. After the page loads, the frontend requests the stored messages with `a8csp_chat_history` and shows them in place of the initial message. Stored answers keep their link icons: they are filtered with the post HTML allowlist plus the icon's `svg` and `path` tags.
+- The frontend waits for one reply at a time. While a reply is pending, the send button is disabled and Enter sends nothing; the visitor can keep typing, and the text stays in the box until they send it. Each message reads the stored chat and writes it back at the end, so two at once would lose one of them.
+- After 120 seconds, the frontend stops waiting, shows "This is taking longer than expected. Please try again.", and lets the visitor send again. The server isn't told to stop, so the message still counts, and an answer that finishes is still stored. A late answer shows after the next page load. If the visitor sends another message while the first is still running, whichever reply finishes last replaces the other in the stored chat. The answer to a chat's first message is never shown, because that chat's cookie is sent with the reply the browser gave up on.
 
 ### Message Limits
 
@@ -261,9 +264,9 @@ The chat endpoint is public, so every message spends the site's AI credits. Each
 
 - **7 per minute per IP** - `a8csp_cws_bot_response_<hash>` transients.
 - **Daily per IP** - **Daily Message Limit per Visitor** under **51 Chatbot > Settings**, default 50. Stored in `a8csp_cws_chat_ip_<hash>` transients.
-- **Daily for the whole site** - **Daily Message Limit (Whole Site)**, default 500. This is the hard cap on AI spend, since it also holds against many IPs. The count is kept in the `a8csp_cws_chat_count_<Ymd>` option, incremented with a conditional SQL update so concurrent requests can't push it past the cap, and older days are deleted on the first message of a new day. The settings screen shows today's count.
+- **Daily for the whole site** - **Daily Message Limit (Whole Site)**, default 500. This is the hard cap on AI spend, since it also holds against many IPs. The count is kept in the `a8csp_cws_chat_count_<Ymd>` option, incremented with a conditional SQL update so concurrent requests can't push it past the cap. The first counted message of a new day moves every other day's count into the `a8csp_cws_chat_usage` option and deletes those count options. The settings screen shows today's count and links to the [Usage](#usage) page.
 
-Days follow the site timezone, and `0` turns a daily limit off. A visitor over a limit gets a short "come back tomorrow" reply. Nonce refreshes are limited to one per minute per IP with `a8csp_nonce_refresh_<hash>` transients.
+Days follow the site timezone, and `0` turns a daily limit off. Messages are still counted for the whole site when its limit is `0`, so `0` turns off the cap but not the count. A visitor over a limit gets a short "come back tomorrow" reply. Nonce refreshes are limited to one per minute per IP with `a8csp_nonce_refresh_<hash>` transients.
 
 The IP is `REMOTE_ADDR`. Forwarded-IP headers are not trusted by default, because anyone can send them to dodge the per-IP limits. If the site is behind a proxy or CDN, every visitor shares one IP; the settings screen shows **Your IP as the chatbot sees it** so an admin can check. In that case, name the header that carries the visitor IP in `wp-config.php`:
 
@@ -272,6 +275,14 @@ define( 'A8CSP_CWS_CLIENT_IP_HEADER', 'HTTP_X_FORWARDED_FOR' );
 ```
 
 The plugin uses the rightmost address in the header, which is the one your proxy added. Addresses to its left are sent by the client and can be faked. If more than one proxy sits in front of the site, set `A8CSP_CWS_CLIENT_IP_TRUSTED_HOPS` to the number of proxies (default `1`). Behind a CDN and a load balancer, use `2`; a value that is too low puts every visitor in the CDN's bucket. An invalid address falls back to `REMOTE_ADDR`. The `a8csp_cws_client_ip` filter can override the result.
+
+## Usage
+
+**51 Chatbot > Usage** shows today's message count against the whole-site limit, totals for the last 7 and 30 days, which include today, an all-time total with the day it starts from, and a table of the last 30 days. Like the other plugin pages, it needs the `manage_options` capability.
+
+A message counts once it has passed the [message limits](#message-limits), even if the AI service then fails to answer it. Messages refused by a limit are not counted. Only counts are stored, never message text or who sent a message. Days follow the site timezone.
+
+Finished days are kept in the `a8csp_cws_chat_usage` option (not autoloaded): about 30 days of daily counts and a running total. The rollup reads this option straight from the database and changes nothing when that read fails, so a failed read can't overwrite the history. Usage history starts when version 1.6.0 is installed, plus the latest day counted before that. Earlier days were not kept, so the page can't show them.
 
 ## Retrieval and Responses
 
@@ -298,6 +309,8 @@ Every link in a chat answer is checked on the server before the answer is shown.
 - Root-relative links (`/path`) are treated as links to this site and follow the rule above. A link that starts with a domain name but has no scheme (`example.com/page`) is read as `https://example.com/page`. Any other link is removed, such as another relative or protocol-relative URL (`page/`, `?p=1`, `//example.com`) or a `javascript:` or `data:` URL.
 
 Kept links open in a new tab, and links to other websites get `rel="noopener nofollow"`. The prompt tells the model to use only URLs from the context and never to guess one; these checks catch the links it guesses anyway.
+
+A link with nothing to click, whose text is empty or only whitespace or invisible characters, is dropped instead of checked; an image inside a link doesn't count as text. An icon link, whose only text is 🔗 (shown as a small link icon), is dropped when it fails the checks, so no icon is left behind. Either way, the bold or italic tags and parentheses around the link go too. So does the whitespace before it when only punctuation, more whitespace, or the end of a tag comes next. After a dropped link, empty list items, lists, paragraphs, headings, and quotes are removed. If an answer ends up with no text and no link, the visitor sees "I apologize, but I'm unable to provide a response right now. Please try again." instead.
 
 ### Recommendations Beyond Your Content
 
@@ -332,7 +345,7 @@ One-way searches use `oneway` and repeat the departure date, because Expedia nee
 
 ### Hotel Search Links
 
-The model often remembers a hotel's name but guesses its website, so the link fails the checks and the name shows as plain text. With **Hotel Search Links** checked, the prompt asks the model to give every hotel link the title `hotel, <city>`, and to use `#` as the URL when it doesn't know the hotel's website:
+The model often remembers a hotel's name but guesses its website, so the link fails the checks and the name shows as plain text. With **Hotel Search Links** checked, the prompt asks the model to give every hotel link the title `hotel, <city>`, inside the link's parentheses and never as text, and to use `#` as the URL when it doesn't know the hotel's website:
 
 ```text
 [Verride Palácio Santa Catarina](https://www.verridesc.pt/ "hotel, Lisbon")
@@ -345,7 +358,14 @@ A hotel link that passes the checks keeps its own URL. When the link would be re
 https://www.booking.com/searchresults.html?ss=Verride%20Pal%C3%A1cio%20Santa%20Catarina%2C%20Lisbon
 ```
 
-When the name is right, Booking.com usually shows that hotel as the only match. When it isn't, the search shows the city's hotels. The city is left out when the name already contains it. Links to this site and links without the `hotel` title are handled as before. The setting is off by default, and the title is never shown.
+When the name is right, Booking.com usually shows that hotel as the only match. When it isn't, the search shows the city's hotels. The city is left out when the name already contains it. An icon link has no name to search for, so it is dropped as described under [Links in Answers](#links-in-answers). Links to this site and links without the `hotel` title are handled as before. The setting is off by default, and the title is never shown.
+
+The model sometimes writes the title as text instead, like `**Le Bristol** (hotel, Paris)`. With the setting on, such a note moves into the link's title and is no longer shown, but only in this exact form and only when it is attached to a link or bold name:
+
+- **Form:** `(hotel, <city>)`, with lowercase `hotel` and a comma. The city starts with an uppercase or caseless letter and is at most 60 characters, without `&`, `=`, parentheses, or angle brackets. Its other words are capitalized too, apart from short place-name words such as `de`, `of`, or `and`. Examples are `Paris`, `Paris, France`, `Trinidad and Tobago`, and `東京`.
+- **Attached:** right after the link or bold name, or at the very end of its text. A bold name must start with a letter, or with digits followed by a letter such as `25hours Hotel`, and it becomes a hotel link. The note's city replaces any title the link already has.
+
+Everything else stays visible as written, such as `(hotel)`, `(Hotel, Paris)`, `(hotel in Paris)`, `(hotel, paris)`, `(hotel, 5 stars)`, `(hotel, Breakfast included)`, `**$200** (hotel, Paris)`, a note with no link or bold name right before it, or a note in code.
 
 ### Link Tracking Label
 

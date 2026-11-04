@@ -158,6 +158,25 @@ function a8csp_handle_nonce_refresh() {
 }
 
 /**
+ * A stored answer filtered by the post allowlist plus the link icon from a8csp_cws_reformat_links().
+ */
+function a8csp_cws_kses_stored_answer( $content ) {
+	$allowed = wp_kses_allowed_html( 'post' );
+	// Lowercase viewbox because wp_kses compares lowercased attribute names.
+	$allowed['svg'] = array(
+		'fill'      => true,
+		'width'     => true,
+		'height'    => true,
+		'focusable' => true,
+		'xmlns'     => true,
+		'viewbox'   => true,
+	);
+	$allowed['path'] = array( 'd' => true );
+
+	return wp_kses( $content, $allowed );
+}
+
+/**
  * The visitor's stored chat, loaded after the page so a page cache never holds one visitor's messages.
  */
 function a8csp_handle_chat_history() {
@@ -165,7 +184,7 @@ function a8csp_handle_chat_history() {
 	foreach ( a8csp_cws_get_chat_history( a8csp_cws_get_chat_id() ) as $message ) {
 		$messages[] = array(
 			'role'    => $message['role'],
-			'content' => 'assistant' === $message['role'] ? wp_kses_post( $message['content'] ) : $message['content'],
+			'content' => 'assistant' === $message['role'] ? a8csp_cws_kses_stored_answer( $message['content'] ) : $message['content'],
 		);
 	}
 

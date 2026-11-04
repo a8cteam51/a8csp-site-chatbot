@@ -775,7 +775,7 @@ function a8csp_cws_apply_link_rule( $attributes, $inner, array $allowed, array $
  * A hotel search link for a link titled "hotel, City" whose own URL can't be shown, or the link's inner HTML.
  */
 function a8csp_cws_apply_hotel_search_fallback( $attributes, $inner, array $settings ) {
-	if ( empty( $settings['hotel_links'] ) || ! preg_match( '/^hotel\b\s*(?:[,:-]\s*|in\s+)?(.*)$/isu', a8csp_cws_get_link_attribute( $attributes, 'title' ), $title ) ) {
+	if ( empty( $settings['hotel_links'] ) || '' === str_replace( '🔗', '', a8csp_cws_get_visible_link_text( $inner ) ) || ! preg_match( '/^hotel\b\s*(?:[,:-]\s*|in\s+)?(.*)$/isu', a8csp_cws_get_link_attribute( $attributes, 'title' ), $title ) ) {
 		return $inner;
 	}
 
@@ -803,10 +803,105 @@ function a8csp_cws_render_external_link( $final, $inner, array $settings ) {
 }
 
 /**
+ * A link's text without whitespace, zero-width characters or variation selectors; '' means there is nothing to click.
+ */
+function a8csp_cws_get_visible_link_text( $inner ) {
+	// Decoded twice because Parsedown escapes entities the model writes, so &nbsp; arrives as &amp;nbsp;.
+	$text = html_entity_decode( html_entity_decode( wp_strip_all_tags( (string) $inner ), ENT_QUOTES | ENT_HTML5, 'UTF-8' ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+	$visible = preg_replace( '/[\s\p{Z}\p{Cc}\p{Cf}\x{FE00}-\x{FE0F}\x{E0100}-\x{E01EF}]+/u', '', $text );
+
+	return null === $visible ? $text : $visible;
+}
+
+/**
+ * Link title for a note written exactly as "(hotel, City)", or '' for anything else, which is ordinary prose.
+ */
+function a8csp_cws_get_hotel_note_title( $note ) {
+	if ( ! preg_match( '/\(hotel,\s*(.*?)\s*\)$/s', (string) $note, $match ) ) {
+		return '';
+	}
+
+	$city = html_entity_decode( $match[1], ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+
+	// Without the i flag, which would make \p{Lu} match lowercase letters.
+	if ( ! preg_match( '/^[\p{Lu}\p{Lt}\p{Lo}][^&()<>=]{0,59}$/su', $city ) ) {
+		return '';
+	}
+
+	// Lowercase words outside place-name particles mean prose, like "(hotel, Breakfast included)".
+	if ( preg_match( "/(?<![\\p{L}\\p{M}\\p{N}'’.-])(?!(?:and|de|del|della|dei|di|da|do|dos|das|du|des|la|le|les|el|al|of|on|am|an|aux|en|sur|the|upon|in|y|e)\\b|[dl]['’])\\p{Ll}/u", $city ) ) {
+		return '';
+	}
+
+	return esc_attr( 'hotel, ' . $match[1] );
+}
+
+/**
+ * Moves hotel notes written as visible text into the title of the link or bold name they are attached to.
+ */
+function a8csp_cws_move_hotel_notes( $html ) {
+	$note = '\(hotel,[^()<>]*\)';
+	// Parsedown escapes entities the model writes, so &nbsp; arrives as &amp;nbsp;.
+	$space = '(?:\s|&(?:amp;)?nbsp;|\xC2\xA0)*';
+	$closing = '(?:' . $space . '<\/(?:strong|em|b|i)>)*';
+
+	// The note is optional so .*? always ends at the first closing tag, and a note can't reach back across an earlier </a>.
+	$moved = preg_replace_callback(
+		'/(?|<a\b([^>]*)>(.*?)<\/a>|<(strong)>((?:(?!<a\b).)*?)<\/strong>)(' . $closing . ')(' . $space . $note . ')?/is',
+		function ( $match ) use ( $note, $space, $closing ) {
+			$inner = $match[2];
+			$after = $match[4] ?? '';
+			$title = a8csp_cws_get_hotel_note_title( $after );
+			if ( '' !== $title ) {
+				$after = '';
+			}
+
+			if ( preg_match( '/^(.*?)' . $space . '(' . $note . ')(' . $closing . $space . ')$/is', $inner, $inside ) && '' !== wp_strip_all_tags( $inside[1] ) ) {
+				$inside_title = a8csp_cws_get_hotel_note_title( $inside[2] );
+				if ( '' !== $inside_title ) {
+					$title = '' === $title ? $inside_title : $title;
+					$inner = $inside[1] . $inside[3];
+				}
+			}
+
+			$is_bold = 'strong' === strtolower( $match[1] );
+			if ( '' === $title || ( $is_bold && ! preg_match( '/^\d*\p{L}/u', wp_strip_all_tags( $inner ) ) ) ) {
+				return $match[0];
+			}
+
+			$attributes = $is_bold ? ' href="#"' : $match[1];
+			$without_title = preg_replace( '/\s+title\s*=\s*(?:"[^"]*"|\'[^\']*\')/i', '', $attributes );
+			$link = '<a' . ( null === $without_title ? $attributes : $without_title ) . ' title="' . $title . '">' . $inner . '</a>';
+
+			return ( $is_bold ? '<strong>' . $link . '</strong>' : $link ) . $match[3] . $after;
+		},
+		(string) $html
+	);
+
+	return null === $moved ? (string) $html : $moved;
+}
+
+/**
+ * Removes the empty blocks and inline tags dropped links leave behind.
+ */
+function a8csp_cws_remove_dropped_link_leftovers( $html ) {
+	do {
+		$tidied = preg_replace( '/\s*<(li|ul|ol|p|strong|em|b|i|h[1-6]|blockquote)\b[^>]*>\s*<\/\1>/', '', $html, -1, $count );
+		$html = null === $tidied ? $html : $tidied;
+	} while ( null !== $tidied && $count > 0 );
+
+	return trim( $html );
+}
+
+/**
  * Keeps only links the answer may show: context URLs, published internal pages, and verified external pages.
  */
 function a8csp_cws_apply_link_policy( $html, array $allowed_urls, array $settings ) {
 	$html = str_replace( "\x1A", '', (string) $html );
+
+	if ( ! empty( $settings['hotel_links'] ) ) {
+		$html = a8csp_cws_move_hotel_notes( $html );
+	}
 
 	$allowed = array();
 	foreach ( $allowed_urls as $allowed_url ) {
@@ -823,7 +918,13 @@ function a8csp_cws_apply_link_policy( $html, array $allowed_urls, array $setting
 	$result = preg_replace_callback(
 		'/<a\b([^>]*)>(.*?)<\/a>/is',
 		function ( $match ) use ( $allowed, $settings, &$budget, &$rendered ) {
-			$rendered[] = a8csp_cws_apply_link_rule( $match[1], $match[2], $allowed, $settings, $budget );
+			$visible = a8csp_cws_get_visible_link_text( $match[2] );
+			$link = '' === $visible ? '' : a8csp_cws_apply_link_rule( $match[1], $match[2], $allowed, $settings, $budget );
+			// An icon the rule took the link away from would point nowhere.
+			if ( '' === str_replace( '🔗', '', $visible ) && ! preg_match( '/<a\b/i', $link ) ) {
+				$link = '';
+			}
+			$rendered[] = $link;
 			return "\x1A" . ( count( $rendered ) - 1 ) . "\x1A";
 		},
 		$html
@@ -835,13 +936,28 @@ function a8csp_cws_apply_link_policy( $html, array $allowed_urls, array $setting
 	}
 
 	if ( null !== $result ) {
+		foreach ( array_keys( $rendered, '', true ) as $index ) {
+			$unwrapped = preg_replace( '/\(\s*((?:<(?:strong|em)>)*\x1A' . $index . '\x1A(?:<\/(?:strong|em)>)*)\s*\)/', '$1', $result );
+			$result = null === $unwrapped ? $result : $unwrapped;
+		}
+
+		// A dropped link takes the bold or italic tags around it, and the whitespace before it when nothing but punctuation or the end of a tag follows.
 		$result = preg_replace_callback(
-			'/\x1A(\d+)\x1A/',
+			'/((?:\s|&(?:amp;)?nbsp;|\xC2\xA0)*)(<strong>(?2)<\/strong>|<em>(?2)<\/em>|\x1A\d+\x1A)(?=(<\/|.)?)/s',
 			function ( $match ) use ( $rendered ) {
-				return $rendered[ (int) $match[1] ] ?? '';
+				$index = (int) preg_replace( '/\D/', '', $match[2] );
+				$link = $rendered[ $index ] ?? '';
+				if ( '' !== $link ) {
+					return $match[1] . str_replace( "\x1A" . $index . "\x1A", $link, $match[2] );
+				}
+				return preg_match( '/^(?:$|<\/|[\s,.;:!?)])/', $match[3] ?? '' ) ? '' : $match[1];
 			},
 			$result
 		);
+	}
+
+	if ( null !== $result && in_array( '', $rendered, true ) ) {
+		$result = a8csp_cws_remove_dropped_link_leftovers( $result );
 	}
 
 	if ( null === $result ) {

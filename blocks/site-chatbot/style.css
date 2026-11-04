@@ -75,8 +75,11 @@
 	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 	
 	strong {
-		color: var(--a8csp-chatbot-primary-color);
 		font-weight: 600;
+	}
+
+	> strong {
+		color: var(--a8csp-chatbot-primary-color);
 	}
 
 	a {

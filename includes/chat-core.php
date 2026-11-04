@@ -255,7 +255,11 @@ function a8csp_cws_get_bot_response($history) {
 
 	// Reformat links to put icon at the end instead of inline
 	$response = a8csp_cws_reformat_links( $response );
-	
+
+	if ( '' === a8csp_cws_get_visible_link_text( $response ) && ! preg_match( '/<a\b/i', $response ) ) {
+		return 'I apologize, but I\'m unable to provide a response right now. Please try again.';
+	}
+
 	return $response;
 }
 
@@ -288,7 +292,7 @@ function a8csp_cws_get_prompt( $link_settings = null ) {
 	}
 
 	if ( ! empty( $link_settings['hotel_links'] ) ) {
-		$format_response .= ' Give every hotel link a title with the word hotel and the hotel\'s city, like **[Hotel Name](its URL "hotel, Paris")**, and use # as the URL when you don\'t know the hotel\'s website. Hotel links that can\'t be verified become a hotel search.';
+		$format_response .= ' Give every hotel link a title with the word hotel and the hotel\'s city, like **[Hotel Name](its URL "hotel, Paris")**, with the title inside the link\'s parentheses and never written as text, and use # as the URL when you don\'t know the hotel\'s website. Hotel links that can\'t be verified become a hotel search.';
 	}
 
 	if ( ! empty( $link_settings['flight_links'] ) ) {
@@ -403,7 +407,7 @@ function a8csp_cws_get_site_message_count() {
 }
 
 /**
- * Count one message for today unless the cap is reached; the conditional UPDATE keeps concurrent requests from overshooting.
+ * Count one message for today unless the cap is reached, with a limit of 0 or less meaning no cap; the conditional UPDATE keeps concurrent requests from overshooting.
  */
 function a8csp_cws_claim_site_message( $limit ) {
 	global $wpdb;
@@ -412,7 +416,12 @@ function a8csp_cws_claim_site_message( $limit ) {
 	$inserted = $wpdb->query( $wpdb->prepare( "INSERT IGNORE INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, '1', 'no')", $option ) );
 
 	if ( $inserted ) {
-		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s AND option_name <> %s", $wpdb->esc_like( 'a8csp_cws_chat_count_' ) . '%', $option ) );
+		a8csp_cws_rollup_usage( $option );
+		return true;
+	}
+
+	if ( $limit <= 0 ) {
+		$wpdb->query( $wpdb->prepare( "UPDATE {$wpdb->options} SET option_value = option_value + 1 WHERE option_name = %s", $option ) );
 		return true;
 	}
 
@@ -431,7 +440,7 @@ function a8csp_cws_check_daily_limits() {
 		return 'You have reached today\'s limit for questions. Please come back tomorrow.';
 	}
 
-	if ( $limits['site'] > 0 && ! a8csp_cws_claim_site_message( $limits['site'] ) ) {
+	if ( ! a8csp_cws_claim_site_message( $limits['site'] ) ) {
 		return 'The assistant has answered all the questions it can for today. Please come back tomorrow.';
 	}
 
