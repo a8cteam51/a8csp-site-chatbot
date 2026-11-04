@@ -937,7 +937,7 @@ function a8csp_cws_apply_link_policy( $html, array $allowed_urls, array $setting
 
 	if ( null !== $result ) {
 		foreach ( array_keys( $rendered, '', true ) as $index ) {
-			$unwrapped = preg_replace( '/\(\s*(\x1A' . $index . '\x1A)\s*\)/', '$1', $result );
+			$unwrapped = preg_replace( '/\(\s*((?:<(?:strong|em)>)*\x1A' . $index . '\x1A(?:<\/(?:strong|em)>)*)\s*\)/', '$1', $result );
 			$result = null === $unwrapped ? $result : $unwrapped;
 		}
 
