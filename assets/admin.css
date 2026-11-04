@@ -269,3 +269,30 @@
 	gap: 8px;
 	margin: 12px 0 0;
 }
+
+/* Usage Page */
+.a8csp-usage-summary {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	margin: 16px 0;
+}
+
+.a8csp-usage-summary > div {
+	flex: 1 1 180px;
+	padding: 12px 16px;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+}
+
+.a8csp-usage-summary dt {
+	font-weight: 600;
+}
+
+.a8csp-usage-summary dd {
+	margin: 4px 0 0;
+}
+
+.a8csp-usage-days {
+	max-width: 480px;
+}

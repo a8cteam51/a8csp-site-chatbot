@@ -9,6 +9,7 @@ function a8csp_cws_admin_menu() {
 	add_menu_page('51 Site Chatbot', '51 Chatbot', 'manage_options', 'chat-with-site-sync', 'a8csp_cws_sync_page', 'dashicons-format-chat');
 	add_submenu_page('chat-with-site-sync', 'Content Library', 'Content Library', 'manage_options', 'chat-with-site-sync', 'a8csp_cws_sync_page');
 	add_submenu_page('chat-with-site-sync', 'Settings', 'Settings', 'manage_options', 'chat-with-site-settings', 'a8csp_cws_settings_page');
+	add_submenu_page('chat-with-site-sync', 'Usage', 'Usage', 'manage_options', 'chat-with-site-usage', 'a8csp_cws_usage_page');
 }
 
 function a8csp_cws_settings_page() {
@@ -485,7 +486,7 @@ function a8csp_cws_daily_message_limit_callback() {
 	$limits = a8csp_cws_get_daily_limits();
 
 	echo '<input type="number" id="daily_message_limit" name="a8csp_chat_with_site_options[daily_message_limit]" value="' . esc_attr( $limits['site'] ) . '" min="0" step="1" class="small-text">';
-	echo '<p class="description">Chat messages answered per day across all visitors, which caps AI costs. 0 means no limit. Today: ' . esc_html( number_format_i18n( a8csp_cws_get_site_message_count() ) ) . '.</p>';
+	echo '<p class="description">Chat messages answered per day across all visitors, which caps AI costs. 0 means no limit. Today: ' . esc_html( number_format_i18n( a8csp_cws_get_site_message_count() ) ) . '. <a href="' . esc_url( admin_url( 'admin.php?page=chat-with-site-usage' ) ) . '">View usage</a></p>';
 }
 
 function a8csp_cws_daily_message_limit_per_ip_callback() {

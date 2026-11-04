@@ -19,6 +19,18 @@ document.addEventListener( 'DOMContentLoaded', () => {
 	// Get the bot name from localized data
 	const botName = a8csp_ajax.bot_name || 'Chatbot';
 
+	const sendButton = form.querySelector( 'button[type="submit"]' );
+	// The longest we keep a visitor waiting; a follow-up's three provider calls can back off for longer, and the server isn't stopped.
+	const replyTimeoutMs = 120000;
+	let waitingForReply = false;
+
+	function setWaitingForReply( waiting ) {
+		waitingForReply = waiting;
+		if ( sendButton ) {
+			sendButton.disabled = waiting;
+		}
+	}
+
 	// The stored chat is fetched after load so cached pages never contain one visitor's messages.
 	async function loadHistory() {
 		try {
@@ -69,10 +81,11 @@ document.addEventListener( 'DOMContentLoaded', () => {
 	}
 
 	// Security: Function to refresh nonce if expired
-	async function refreshNonceIfNeeded() {
+	async function refreshNonceIfNeeded( signal ) {
 		try {
 			const response = await fetch( a8csp_ajax.ajax_url, {
 				method: 'POST',
+				signal,
 				body: new URLSearchParams({
 					action: 'a8csp_refresh_nonce'
 				})
@@ -86,6 +99,10 @@ document.addEventListener( 'DOMContentLoaded', () => {
 				}
 			}
 		} catch ( error ) {
+			// Swallowing a timeout here would show it as "Invalid nonce".
+			if ( signal.aborted ) {
+				throw error;
+			}
 			console.error( 'A8CSP Chat: Nonce refresh failed', error );
 		}
 		return false;
@@ -93,6 +110,8 @@ document.addEventListener( 'DOMContentLoaded', () => {
 
 	// Shared function to handle message submission
 	async function submitMessage() {
+		if ( waitingForReply ) return;
+
 		const message = input.value.trim();
 		if ( ! message ) return;
 
@@ -119,6 +138,15 @@ document.addEventListener( 'DOMContentLoaded', () => {
 		history.appendChild( typingIndicator );
 		history.scrollTop = history.scrollHeight;
 
+		// A disabled button loses keyboard focus, which would strand whoever pressed it.
+		if ( sendButton && document.activeElement === sendButton ) {
+			input.focus();
+		}
+		setWaitingForReply( true );
+
+		const controller = new AbortController();
+		const timeoutId = setTimeout( () => controller.abort(), replyTimeoutMs );
+
 		// Send to server via AJAX
 		try {
 			const formData = new FormData();
@@ -128,6 +156,7 @@ document.addEventListener( 'DOMContentLoaded', () => {
 
 			const response = await fetch( a8csp_ajax.ajax_url, {
 				method: 'POST',
+				signal: controller.signal,
 				body: formData
 			} );
 
@@ -143,9 +172,6 @@ document.addEventListener( 'DOMContentLoaded', () => {
 				throw new Error( 'Invalid response format' );
 			}
 			
-			// Remove typing indicator
-			history.removeChild( typingIndicator );
-
 			if ( result.success ) {
 				// Add bot response
 				const botMsg = document.createElement( 'div' );
@@ -163,7 +189,7 @@ document.addEventListener( 'DOMContentLoaded', () => {
 				// Security: Handle nonce expiration
 				if ( result.data === 'Invalid nonce' ) {
 					console.log( 'A8CSP Chat: Nonce expired, attempting refresh...' );
-					const refreshed = await refreshNonceIfNeeded();
+					const refreshed = await refreshNonceIfNeeded( controller.signal );
 					if ( refreshed ) {
 						// Retry the request with new nonce
 						const retryFormData = new FormData();
@@ -173,6 +199,7 @@ document.addEventListener( 'DOMContentLoaded', () => {
 
 						const retryResponse = await fetch( a8csp_ajax.ajax_url, {
 							method: 'POST',
+							signal: controller.signal,
 							body: retryFormData
 						} );
 
@@ -206,11 +233,6 @@ document.addEventListener( 'DOMContentLoaded', () => {
 				history.appendChild( errorMsg );
 			}
 		} catch ( error ) {
-			// Remove typing indicator on error
-			if ( history.contains( typingIndicator ) ) {
-				history.removeChild( typingIndicator );
-			}
-
 			// Log error for debugging
 			console.error( 'A8CSP Chat error:', error );
 			
@@ -223,7 +245,9 @@ document.addEventListener( 'DOMContentLoaded', () => {
 			
 			// Provide specific error messages based on error type
 			let errorText = ' Network error occurred';
-			if ( error.message.includes( 'HTTP error' ) ) {
+			if ( controller.signal.aborted ) {
+				errorText = ' This is taking longer than expected. Please try again.';
+			} else if ( error.message.includes( 'HTTP error' ) ) {
 				errorText = ' Server error occurred. Please try again.';
 			} else if ( error.message.includes( 'Invalid response' ) ) {
 				errorText = ' Invalid server response. Please try again.';
@@ -233,9 +257,12 @@ document.addEventListener( 'DOMContentLoaded', () => {
 			
 			errorMsg.appendChild( document.createTextNode( errorText ) );
 			history.appendChild( errorMsg );
+		} finally {
+			clearTimeout( timeoutId );
+			setWaitingForReply( false );
+			typingIndicator.remove();
+			history.scrollTop = history.scrollHeight;
 		}
-
-		history.scrollTop = history.scrollHeight;
 	}
 
 	// Handle Enter key to submit (but not Shift+Enter)
@@ -252,5 +279,7 @@ document.addEventListener( 'DOMContentLoaded', () => {
 		submitMessage();
 	} );
 
+	// Firefox can restore a disabled button after a soft reload.
+	setWaitingForReply( false );
 	loadHistory();
 } );
